@@ -1,0 +1,35 @@
+table[style*="--catalog-table-border-style"],
+.catalog-table {
+    width: 100%;
+    background-color: #ffffff;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+table[style*="--catalog-table-border-style"] thead > tr > th:first-child,
+table[style*="--catalog-table-border-style"] tbody > tr > td:first-child,
+.catalog-table thead > tr > th:first-child,
+.catalog-table tbody > tr > td:first-child {
+    text-align: left;
+}
+
+table[style*="--catalog-table-border-style"] thead > tr > th:not(:first-child),
+table[style*="--catalog-table-border-style"] tbody > tr > td:not(:first-child),
+.catalog-table thead > tr > th:not(:first-child),
+.catalog-table tbody > tr > td:not(:first-child) {
+    text-align: center;
+}
+
+table[style*="--catalog-table-border-style"] thead th,
+table[style*="--catalog-table-border-style"] tbody td,
+.catalog-table thead th,
+.catalog-table tbody td {
+    padding: 12px;
+    border: 1px solid #e1e1e1;
+    vertical-align: top;
+}
+
+table[style*="--catalog-table-border-style"] tbody tr,
+.catalog-table tbody tr {
+    background-color: #ffffff;
+}

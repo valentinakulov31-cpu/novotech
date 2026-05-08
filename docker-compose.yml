@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    container_name: django_shop_web
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      RUN_MIGRATIONS: "1"
+      RUN_COLLECTSTATIC: "1"
+      STATIC_ROOT: /app/staticfiles
+      MEDIA_ROOT: /app/media
+    volumes:
+      - /var/www/django_shop/staticfiles:/app/staticfiles
+      - /var/www/django_shop/media:/app/media

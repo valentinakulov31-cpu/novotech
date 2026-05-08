@@ -1,0 +1,104 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <div class="module">
+      <h1>{{ title }}</h1>
+      <p>{{ subtitle }}</p>
+      <form method="get" style="margin: 1rem 0; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        <input
+          type="text"
+          name="q"
+          value="{{ search_query }}"
+          placeholder="Search by title, owner, source, url, path"
+          style="min-width: 340px; padding: 0.5rem 0.75rem;"
+        />
+        <button type="submit" class="button">Search</button>
+        {% if search_query %}
+          <a href="{% url 'admin:shop_medialibrary_changelist' %}" class="button">Reset</a>
+        {% endif %}
+        <span>{{ asset_count }} asset{{ asset_count|pluralize }}</span>
+      </form>
+    </div>
+
+    <div class="module">
+      <table id="result_list">
+        <thead>
+          <tr>
+            <th>Preview</th>
+            <th>Asset</th>
+            <th>Type</th>
+            <th>Usage</th>
+            <th>File</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in media_assets %}
+            <tr>
+              <td style="width: 160px;">
+                {% if asset.preview_url %}
+                  <a href="{{ asset.url }}" target="_blank">
+                    <img src="{{ asset.preview_url }}" alt="{{ asset.title }}" style="max-width: 140px; max-height: 100px;" />
+                  </a>
+                {% elif asset.url %}
+                  <a href="{{ asset.url }}" target="_blank">open</a>
+                {% else %}
+                  No preview
+                {% endif %}
+              </td>
+              <td style="min-width: 220px;">
+                <strong>{{ asset.title }}</strong><br />
+                {% if asset.mime_type %}<span>{{ asset.mime_type }}</span><br />{% endif %}
+                {% if asset.size_bytes %}<span>{{ asset.size_bytes }} bytes</span><br />{% endif %}
+                <span>{% if asset.is_local %}local{% else %}remote{% endif %}{% if asset.is_local %} / {% if asset.file_exists %}exists{% else %}missing{% endif %}{% endif %}</span>
+              </td>
+              <td style="width: 120px;">{{ asset.kind }}</td>
+              <td>
+                <strong>{{ asset.usage_count }} usage{{ asset.usage_count|pluralize }}</strong>
+                <ul style="margin: 0.5rem 0 0 1.2rem;">
+                  {% for usage in asset.usages %}
+                    <li>
+                      {{ usage.source_label }}:
+                      {% if usage.owner_admin_url %}
+                        <a href="{{ usage.owner_admin_url }}">{{ usage.owner_label }}</a>
+                      {% else %}
+                        {{ usage.owner_label }}
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              </td>
+              <td style="min-width: 260px;">
+                {% if asset.url %}<div><a href="{{ asset.url }}" target="_blank">{{ asset.url }}</a></div>{% endif %}
+                {% if asset.storage_path %}<div><code>{{ asset.storage_path }}</code></div>{% endif %}
+              </td>
+              <td style="width: 140px;">
+                <form method="post" action="{% url 'admin:shop_medialibrary_delete_asset' %}" onsubmit="return confirm('Delete this media from the file system and all dependencies?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="asset_url" value="{{ asset.url|default:'' }}" />
+                  <input type="hidden" name="asset_storage_path" value="{{ asset.storage_path|default:'' }}" />
+                  <input type="hidden" name="asset_title" value="{{ asset.title }}" />
+                  <input type="hidden" name="q" value="{{ search_query }}" />
+                  <button type="submit" class="deletelink" style="background: none; border: none; padding: 0; cursor: pointer;">Delete everywhere</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6">No media assets found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
