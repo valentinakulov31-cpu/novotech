@@ -1,149 +1,28 @@
-# Production deployment
+# Деплой Novotech
 
-Инструкция рассчитана на Ubuntu 22.04/24.04, PostgreSQL, Gunicorn и Nginx.
+Проект на сервере лежит как есть, без дополнительной папки `app`:
 
-## Docker variant with system PostgreSQL
-
-В проект добавлены:
-
-- `Dockerfile` - образ Django/Gunicorn.
-- `docker/entrypoint.sh` - запускает `migrate` и `collectstatic`, потом Gunicorn.
-- `docker-compose.yml` - поднимает только Django-контейнер. PostgreSQL остается системной.
-- `docker.env.example` - пример env для Docker-запуска.
-
-PostgreSQL должен быть установлен на хосте, не в Docker. Так как `docker-compose.yml` использует `network_mode: host`, контейнер видит системную PostgreSQL по `127.0.0.1:5432`.
-
-Установить Docker:
-
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```text
+/root/project_shop/novotech/
+  django_shop/
+  docker/
+  shop/
+  Dockerfile
+  docker-compose.yml
+  manage.py
+  requirements.txt
+  .env
 ```
 
-Подготовить директории для файлов:
+PostgreSQL используется системная, не в Docker. Docker поднимает только Django/Gunicorn.
 
-```bash
-sudo mkdir -p /var/www/django_shop/media /var/www/django_shop/staticfiles
-sudo chown -R 1000:1000 /var/www/django_shop
-```
+## 1. PostgreSQL
 
-Создать `.env`:
-
-```bash
-cp docker.env.example .env
-nano .env
-```
-
-Обязательные значения:
-
-```env
-DEBUG=False
-SECRET_KEY=<long-random-secret>
-DATABASE_URL=postgresql://django_shop_user:<password>@127.0.0.1:5432/django_shop
-ALLOWED_HOSTS=example.com,www.example.com
-CSRF_TRUSTED_ORIGINS=https://example.com,https://www.example.com
-CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com
-```
-
-Системную PostgreSQL подготовить так же, как в разделе PostgreSQL ниже. База, пользователь и пароль должны совпадать с `DATABASE_URL`.
-
-Собрать и запустить:
-
-```bash
-docker compose build
-docker compose up -d
-docker compose logs -f web
-```
-
-Создать админа:
-
-```bash
-docker compose exec web python manage.py createsuperuser
-```
-
-Nginx при Docker-варианте проксирует на Gunicorn в host network:
-
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:8000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-```
-
-Статику и media оставить как в Nginx-конфиге ниже:
-
-```nginx
-location /django-static/ {
-    alias /var/www/django_shop/staticfiles/;
-}
-
-location /static/ {
-    alias /var/www/django_shop/media/;
-}
-```
-
-Обновление Docker-релиза:
-
-```bash
-git pull
-docker compose build
-docker compose up -d
-docker compose logs -f web
-```
-
-## 1. Подготовить сервер
-
-```bash
-sudo apt update
-sudo apt install -y python3 python3-venv python3-pip postgresql postgresql-contrib nginx git
-```
-
-Создать пользователя для приложения:
-
-```bash
-sudo adduser --system --group --home /opt/django_shop django_shop
-sudo mkdir -p /var/www/django_shop/media /var/www/django_shop/staticfiles
-sudo chown -R django_shop:django_shop /opt/django_shop /var/www/django_shop
-```
-
-## 2. Развернуть код
-
-Скопировать проект в `/opt/django_shop/app`. Например:
-
-```bash
-sudo -u django_shop mkdir -p /opt/django_shop/app
-sudo -u django_shop git clone <REPO_URL> /opt/django_shop/app
-```
-
-Если код загружается архивом, распаковать его в ту же папку так, чтобы рядом лежали `manage.py`, `requirements.txt`, `django_shop/`, `shop/`.
-
-Создать окружение:
-
-```bash
-cd /opt/django_shop/app
-sudo -u django_shop python3 -m venv .venv
-sudo -u django_shop .venv/bin/pip install --upgrade pip
-sudo -u django_shop .venv/bin/pip install -r requirements.txt
-```
-
-## 3. PostgreSQL
-
-Зайти в PostgreSQL:
+Если база уже создана, этот шаг можно пропустить.
 
 ```bash
 sudo -u postgres psql
 ```
-
-Создать базу, пользователя и расширение:
 
 ```sql
 CREATE DATABASE django_shop;
@@ -152,128 +31,142 @@ ALTER ROLE django_shop_user SET client_encoding TO 'utf8';
 ALTER ROLE django_shop_user SET default_transaction_isolation TO 'read committed';
 ALTER ROLE django_shop_user SET timezone TO 'UTC';
 GRANT ALL PRIVILEGES ON DATABASE django_shop TO django_shop_user;
+
 \c django_shop
+
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 GRANT ALL ON SCHEMA public TO django_shop_user;
+
 \q
 ```
 
-Пароль из SQL должен совпадать с `DATABASE_URL` в `.env`.
-
-## 4. Заполнить `.env`
-
-Создать файл:
+Проверка подключения:
 
 ```bash
-cd /opt/django_shop/app
-sudo -u django_shop cp .env.example .env
-sudo -u django_shop nano .env
+psql "postgresql://django_shop_user:CHANGE_ME_STRONG_PASSWORD@127.0.0.1:5432/django_shop" -c "SELECT current_database(), current_user;"
 ```
 
-Минимальный продовый пример:
+## 2. `.env` для запуска по IP без HTTPS
+
+Пока домена и HTTPS нет, используй такие настройки:
 
 ```env
-DEBUG=False
-SECRET_KEY=PASTE_GENERATED_SECRET_KEY_HERE
+DEBUG=True
+SECRET_KEY=change-me-with-python-secrets-token-urlsafe-64
 
 DATABASE_URL=postgresql://django_shop_user:CHANGE_ME_STRONG_PASSWORD@127.0.0.1:5432/django_shop
 
-ALLOWED_HOSTS=example.com,www.example.com
-CSRF_TRUSTED_ORIGINS=https://example.com,https://www.example.com
-CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com
+ALLOWED_HOSTS=2.26.104.125,127.0.0.1,localhost
+CSRF_TRUSTED_ORIGINS=http://2.26.104.125:8000
+CORS_ALLOWED_ORIGINS=http://2.26.104.125:8000
+CORS_ALLOW_ALL_ORIGINS=True
 
 MEDIA_URL=/static/
-MEDIA_ROOT=/var/www/django_shop/media
 STATIC_URL=/django-static/
-STATIC_ROOT=/var/www/django_shop/staticfiles
 
-SECURE_SSL_REDIRECT=True
-SESSION_COOKIE_SECURE=True
-CSRF_COOKIE_SECURE=True
-SECURE_HSTS_SECONDS=31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+SECURE_SSL_REDIRECT=False
+SESSION_COOKIE_SECURE=False
+CSRF_COOKIE_SECURE=False
+SECURE_HSTS_SECONDS=0
+SECURE_HSTS_INCLUDE_SUBDOMAINS=False
 SECURE_HSTS_PRELOAD=False
 
 FRAME_ANCESTOR_ORIGINS='self'
 
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=smtp.example.com
+EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
-EMAIL_HOST_USER=no-reply@example.com
-EMAIL_HOST_PASSWORD=CHANGE_ME_SMTP_PASSWORD
+EMAIL_HOST_USER=your-gmail@gmail.com
+EMAIL_HOST_PASSWORD=your-gmail-app-password
 EMAIL_USE_TLS=True
 EMAIL_USE_SSL=False
-DEFAULT_FROM_EMAIL=no-reply@example.com
+DEFAULT_FROM_EMAIL=your-gmail@gmail.com
+
+RUN_MIGRATIONS=1
+RUN_COLLECTSTATIC=1
 ```
 
-Сгенерировать `SECRET_KEY`:
+Редактирование:
 
 ```bash
-python3 - <<'PY'
-from django.core.management.utils import get_random_secret_key
-print(get_random_secret_key())
-PY
+cd /root/project_shop/novotech
+nano .env
 ```
 
-Если сайт пока без HTTPS, временно поставить `SECURE_SSL_REDIRECT=False`, `SESSION_COOKIE_SECURE=False`, `CSRF_COOKIE_SECURE=False`, `SECURE_HSTS_SECONDS=0`. После выпуска сертификата вернуть значения из примера.
+## 3. Docker-запуск
 
-## 5. Миграции, статика, админ
+Подготовить папки для статики и загруженных файлов:
 
 ```bash
-cd /opt/django_shop/app
-sudo -u django_shop .venv/bin/python manage.py check --deploy
-sudo -u django_shop .venv/bin/python manage.py migrate
-sudo -u django_shop .venv/bin/python manage.py collectstatic --noinput
-sudo -u django_shop .venv/bin/python manage.py createsuperuser
+sudo mkdir -p /var/www/django_shop/staticfiles /var/www/django_shop/media
+sudo chmod -R 777 /var/www/django_shop
 ```
 
-## 6. Gunicorn systemd service
-
-Создать `/etc/systemd/system/django-shop.service`:
-
-```ini
-[Unit]
-Description=Django Shop Gunicorn
-After=network.target postgresql.service
-
-[Service]
-User=django_shop
-Group=django_shop
-WorkingDirectory=/opt/django_shop/app
-EnvironmentFile=/opt/django_shop/app/.env
-ExecStart=/opt/django_shop/app/.venv/bin/gunicorn django_shop.wsgi:application \
-  --bind 127.0.0.1:8001 \
-  --workers 3 \
-  --timeout 120
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Запустить:
+Собрать и запустить:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now django-shop
-sudo systemctl status django-shop
+cd /root/project_shop/novotech
+docker compose build --no-cache
+docker compose up -d --force-recreate
+docker compose logs -f web
 ```
 
-Логи:
+Проверка:
 
 ```bash
-sudo journalctl -u django-shop -f
+curl -i http://127.0.0.1:8000/v1/healthz/
+curl -i http://127.0.0.1:8000/v1/docs/
 ```
 
-## 7. Nginx
+В браузере:
 
-Создать `/etc/nginx/sites-available/django-shop`:
+```text
+http://2.26.104.125:8000/v1/healthz/
+http://2.26.104.125:8000/v1/docs/
+http://2.26.104.125:8000/admin/
+```
+
+Создать админа:
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+## 4. Если `.env` изменился
+
+`docker compose restart` не всегда пересоздает контейнер с новым env. После правки `.env` делай так:
+
+```bash
+docker compose down
+docker compose up -d --force-recreate
+```
+
+Проверить env внутри контейнера:
+
+```bash
+docker compose exec web env | grep -E "DEBUG|ALLOWED_HOSTS|CSRF|CORS|SECURE|DATABASE_URL"
+```
+
+## 5. Обновление кода
+
+```bash
+cd /root/project_shop/novotech
+git pull
+docker compose build --no-cache
+docker compose up -d --force-recreate
+docker compose logs -f web
+```
+
+Если Git не используется, заменить файлы проекта вручную и выполнить те же команды `build` и `up`.
+
+## 6. Nginx, когда будет нужен нормальный доступ
+
+Пример конфига:
 
 ```nginx
 server {
     listen 80;
-    server_name example.com www.example.com;
+    server_name 2.26.104.125;
 
     client_max_body_size 100m;
 
@@ -290,7 +183,7 @@ server {
     }
 
     location / {
-        proxy_pass http://127.0.0.1:8001;
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -299,71 +192,37 @@ server {
 }
 ```
 
-Включить сайт:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/django-shop /etc/nginx/sites-enabled/django-shop
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## 8. HTTPS
-
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d example.com -d www.example.com
-```
-
-После успешного сертификата проверить `.env`, чтобы SSL-настройки были включены:
+После появления домена и HTTPS в `.env` вернуть:
 
 ```env
+DEBUG=False
+ALLOWED_HOSTS=example.com,www.example.com,127.0.0.1,localhost
+CSRF_TRUSTED_ORIGINS=https://example.com,https://www.example.com
+CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com
+CORS_ALLOW_ALL_ORIGINS=False
 SECURE_SSL_REDIRECT=True
 SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
 SECURE_HSTS_SECONDS=31536000
 ```
 
-Затем:
+## 7. Импорт XLSX и файлы
+
+В колонках `media_urls`, `gallery_urls`, `document_urls`, `certificate_urls` можно указывать:
+
+- URL, например `https://example.com/file.pdf`;
+- уже готовые `/static/...` ссылки;
+- локальные пути на сервере, например `/tmp/import/product-1.jpg`.
+
+Важно: локальный путь должен существовать именно на сервере, где работает контейнер. Если файл лежит на компьютере администратора, сначала загрузи его на сервер, потом укажи серверный путь в XLSX.
+
+Несколько файлов в одной ячейке можно разделять запятыми, точками с запятой или переносами строк.
+
+## 8. Диагностика
 
 ```bash
-sudo systemctl restart django-shop
-```
-
-## 9. Импорт XLSX и локальные файлы
-
-Импорт поддерживает URL и локальные пути в колонках `media_urls`, `gallery_urls`, `document_urls`, `certificate_urls`.
-
-Важный момент: локальный путь читается на сервере, где работает Django. Если файл лежит на компьютере администратора, его сначала нужно загрузить на сервер, например в `/tmp/import_files/`, и уже этот серверный путь указать в XLSX.
-
-Пример:
-
-```text
-/tmp/import_files/product-1.jpg
-https://example.com/manual.pdf
-/var/import/certificates/cert-1.pdf
-```
-
-Несколько файлов в одной ячейке можно разделять запятыми, точками с запятой или переносами строк. При импорте локальные файлы копируются в `/var/www/django_shop/media/admin_uploads/...`, а в базе сохраняется `/static/admin_uploads/...`.
-
-## 10. Обновление релиза
-
-```bash
-cd /opt/django_shop/app
-sudo -u django_shop git pull
-sudo -u django_shop .venv/bin/pip install -r requirements.txt
-sudo -u django_shop .venv/bin/python manage.py migrate
-sudo -u django_shop .venv/bin/python manage.py collectstatic --noinput
-sudo systemctl restart django-shop
-sudo systemctl status django-shop
-```
-
-## 11. Быстрая диагностика
-
-```bash
-sudo systemctl status django-shop
-sudo journalctl -u django-shop -n 100 --no-pager
-sudo nginx -t
-sudo tail -n 100 /var/log/nginx/error.log
-curl -I http://127.0.0.1:8001/v1/healthz/
-curl -I https://example.com/v1/healthz/
+docker compose ps
+docker compose logs --tail=100 web
+docker compose exec web python manage.py check
+curl -i http://127.0.0.1:8000/v1/healthz/
 ```

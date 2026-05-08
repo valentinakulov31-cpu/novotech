@@ -167,7 +167,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ РѕС‚РєСЂС‹С‚Рѕ, РєР°Рє РІ FastAPI
+        'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_FILTER_BACKENDS': [
@@ -178,11 +178,11 @@ REST_FRAMEWORK = {
 
 # drf-spectacular settings for Swagger
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Р‘СЌРєРµРЅРґ РјР°РіР°Р·РёРЅР° (Django)',
+    'TITLE': 'Бэкенд магазина Novotech',
     'DESCRIPTION': (
-        'REST API РёРЅС‚РµСЂРЅРµС‚-РјР°РіР°Р·РёРЅР°: Р±СЂРµРЅРґС‹, РіСЂСѓРїРїС‹, С‚РѕРІР°СЂС‹, С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё, '
-        'РјРµРґРёР°-С„Р°Р№Р»С‹, РЅРѕРІРѕСЃС‚Рё, РїРѕРёСЃРє, РєР°С‚Р°Р»РѕРі, Р·Р°СЏРІРєРё Рё Р·Р°РєР°Р·С‹.\n\n'
-        'РђРґРјРёРЅРёСЃС‚СЂРёСЂРѕРІР°РЅРёРµ РІРµРґРµС‚СЃСЏ С‡РµСЂРµР· Django admin. Р’СЃРµ РѕС‚РІРµС‚С‹ вЂ” JSON.'
+        'REST API интернет-магазина: бренды, группы, товары, характеристики, '
+        'медиа-файлы, новости, поиск, каталог, заявки и заказы.\n\n'
+        'Администрирование ведется через Django admin. Все ответы - JSON.'
     ),
     'VERSION': '0.1.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -196,14 +196,14 @@ SPECTACULAR_SETTINGS = {
         'url': 'https://opensource.org/licenses/MIT',
     },
     'TAGS': [
-        {'name': 'brands', 'description': 'Р‘СЂРµРЅРґС‹ С‚РѕРІР°СЂРѕРІ'},
-        {'name': 'groups', 'description': 'Р“СЂСѓРїРїС‹/РєР°С‚РµРіРѕСЂРёРё С‚РѕРІР°СЂРѕРІ Рё РґРµСЂРµРІРѕ РєР°С‚РµРіРѕСЂРёР№'},
-        {'name': 'products', 'description': 'РўРѕРІР°СЂС‹: CRUD Рё С„РёР»СЊС‚СЂР°С†РёСЏ'},
-        {'name': 'attributes', 'description': 'РҐР°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё (EAV) Рё Р·РЅР°С‡РµРЅРёСЏ С‚РѕРІР°СЂР°'},
-        {'name': 'media', 'description': 'РњРµРґРёР°-С„Р°Р№Р»С‹ С‚РѕРІР°СЂРѕРІ (Р·Р°РіСЂСѓР·РєР° Рё СЃРїРёСЃРѕРє)'},
-        {'name': 'orders', 'description': 'Р—Р°РєР°Р·С‹/Р·Р°СЏРІРєРё'},
-        {'name': 'news', 'description': 'РќРѕРІРѕСЃС‚Рё РјР°РіР°Р·РёРЅР°'},
-        {'name': 'filters', 'description': 'Р¤РёР»СЊС‚СЂС‹ РєР°С‚Р°Р»РѕРіР° РїРѕ С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєР°Рј'},
+        {'name': 'brands', 'description': 'Бренды товаров'},
+        {'name': 'groups', 'description': 'Группы, категории и дерево категорий'},
+        {'name': 'products', 'description': 'Товары: CRUD и фильтрация'},
+        {'name': 'attributes', 'description': 'Характеристики и значения товара'},
+        {'name': 'media', 'description': 'Медиа-файлы товаров'},
+        {'name': 'orders', 'description': 'Заказы и заявки'},
+        {'name': 'news', 'description': 'Новости магазина'},
+        {'name': 'filters', 'description': 'Фильтры каталога'},
     ],
 }
 
