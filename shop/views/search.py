@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from shop.filtering import annotate_characteristics_search_text, apply_ranked_search, tokenize_query
+from shop.filtering import apply_ranked_search, tokenize_query
 from shop.seo import build_group_seo, build_product_seo, resolve_city
 from shop.models import Brand, Characteristic, Group, Product
 
@@ -97,7 +97,7 @@ class GlobalSearchView(APIView):
             "sku",
             "name",
             "description",
-            "characteristics_search_text",
+            "characteristics_html",
             "search_tsv",
             "group__name",
             "group__slug",
@@ -113,7 +113,7 @@ class GlobalSearchView(APIView):
 
         products = (
             apply_ranked_search(
-                annotate_characteristics_search_text(Product.objects.select_related("group", "brand")),
+                Product.objects.select_related("group", "brand"),
                 query,
                 exact_fields=product_fields,
                 fuzzy_fields=product_fields,
