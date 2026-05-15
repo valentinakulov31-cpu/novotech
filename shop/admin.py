@@ -1124,6 +1124,8 @@ def import_products_from_workbook(workbook_file):
             for field_name in PRODUCT_OPTIONAL_IMPORT_FIELDS:
                 if field_name in payload:
                     defaults[field_name] = clean_optional_text(payload.get(field_name))
+            if "slug" in payload:
+                defaults["slug"] = clean_optional_text(payload.get("slug")) or ""
 
             if "media_urls" in payload:
                 defaults["media"] = split_media_urls(payload.get("media_urls"))
@@ -1217,6 +1219,7 @@ def build_product_export_rows(products_queryset):
 
     headers = [
         "sku",
+        "slug",
         "name",
         "price",
         "currency",
@@ -1251,6 +1254,7 @@ def build_product_export_rows(products_queryset):
         product_media_urls = [item.url for item in product.media_files.all()]
         rows.append([
             product.sku,
+            product.slug,
             product.name,
             str(product.price),
             product.currency,
@@ -1963,11 +1967,12 @@ class ProductAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
     change_list_template = "admin/shop/product/change_list.html"
     inlines = [ProductMediaInline, ProductGalleryItemInline, ProductDocumentInline, ProductCertificateInline]
     list_display = ("id", "name", "sku", "brand", "group", "price", "available", "media_preview")
-    search_fields = ("name", "sku", "search_tsv", "seo_title", "seo_h1")
+    search_fields = ("name", "sku", "slug", "search_tsv", "seo_title", "seo_h1")
     list_filter = ("available", "brand", "group")
     readonly_fields = ("media_preview",)
     fields = (
         "sku",
+        "slug",
         "name",
         "price",
         "currency",

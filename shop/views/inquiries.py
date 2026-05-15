@@ -13,6 +13,7 @@ from shop.serializers import InquiryCreateSerializer, InquirySerializer
     responses={201: InquirySerializer},
 )
 class InquiryCreateView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):

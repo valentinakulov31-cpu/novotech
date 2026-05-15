@@ -72,6 +72,7 @@ class GroupSerializer(serializers.ModelSerializer):
 
 class ProductCreateSerializer(serializers.Serializer):
     sku = serializers.CharField()
+    slug = serializers.CharField(required=False, allow_blank=True)
     name = serializers.CharField()
     price = serializers.DecimalField(max_digits=12, decimal_places=2)
     currency = serializers.CharField()
@@ -101,7 +102,7 @@ class ProductSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Product
-        fields = ['id', 'sku', 'name', 'price', 'currency', 'description', 'assortment_html', 'characteristics_html',
+        fields = ['id', 'sku', 'slug', 'name', 'price', 'currency', 'description', 'assortment_html', 'characteristics_html',
                   'group_id', 'brand_id', 'media', 'available', 'seo', 'gallery',
                   'media_list', 'documents_list', 'certificates_list']
 
@@ -344,11 +345,12 @@ class PublicOrderCreateSerializer(serializers.ModelSerializer):
 class PublicOrderItemSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField(source='product.id', read_only=True)
     sku = serializers.CharField(source='product.sku', read_only=True)
+    slug = serializers.CharField(source='product.slug', read_only=True)
     name = serializers.CharField(source='product.name', read_only=True)
 
     class Meta:
         model = PublicOrderItem
-        fields = ['id', 'product_id', 'sku', 'name', 'qty']
+        fields = ['id', 'product_id', 'sku', 'slug', 'name', 'qty']
 
 
 class PublicOrderSerializer(serializers.ModelSerializer):

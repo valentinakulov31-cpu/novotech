@@ -9,6 +9,7 @@ from shop.serializers import CatalogQuerySerializer
 
 @extend_schema(tags=["catalog"])
 class CatalogResultsView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -24,6 +25,7 @@ class CatalogResultsView(APIView):
 
 @extend_schema(tags=["catalog"])
 class CatalogFacetsView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(

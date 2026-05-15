@@ -35,6 +35,7 @@ def serialize_product(product: Product, city=None) -> dict:
     return {
         "id": product.id,
         "sku": product.sku,
+        "slug": product.slug,
         "name": product.name,
         "price": float(product.price),
         "currency": product.currency,
@@ -46,7 +47,7 @@ def serialize_product(product: Product, city=None) -> dict:
         "seo": build_product_seo(product, city=city),
         "group": serialize_group(product.group, city=city) if product.group else None,
         "brand": serialize_brand(product.brand) if product.brand else None,
-        "url": f"/products/{product.id}",
+        "url": f"/products/{product.slug}",
     }
 
 
@@ -95,6 +96,7 @@ class GlobalSearchView(APIView):
 
         product_fields = [
             "sku",
+            "slug",
             "name",
             "description",
             "characteristics_html",

@@ -256,9 +256,10 @@ class CatalogApiTests(TestCase):
         self.assertEqual(data[0]["sku"], "ER-0001")
 
     def test_product_detail_includes_sorted_media_and_documents(self):
-        response = self.client.get(reverse("products-detail", kwargs={"product_id": self.product.id}))
+        response = self.client.get(reverse("products-detail", kwargs={"product_identifier": self.product.slug}))
         self.assertEqual(response.status_code, 200)
         data = response.json()
+        self.assertEqual(data["slug"], self.product.slug)
         self.assertEqual([item["url"] for item in data["media_list"]], ["/static/b.jpg", "/static/a.jpg"])
         self.assertEqual([item["url"] for item in data["gallery"]], ["/static/video.mp4", "/static/gallery.jpg"])
         self.assertEqual(data["gallery"][0]["file_kind"], "video")
@@ -278,7 +279,7 @@ class CatalogApiTests(TestCase):
         self.assertEqual(data[0]["assortment_html"], "<p><strong>Ассортимент:</strong> цилиндры, маты</p>")
 
     def test_public_media_payload_does_not_expose_storage_paths(self):
-        response = self.client.get(reverse("products-detail", kwargs={"product_id": self.product.id}))
+        response = self.client.get(reverse("products-detail", kwargs={"product_identifier": self.product.slug}))
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertNotIn("storage_path", data["media_list"][0])
@@ -287,7 +288,7 @@ class CatalogApiTests(TestCase):
         self.assertNotIn("storage_path", data["certificates_list"][0])
 
     def test_products_api_returns_characteristics_html(self):
-        detail_response = self.client.get(reverse("products-detail", kwargs={"product_id": self.product.id}))
+        detail_response = self.client.get(reverse("products-detail", kwargs={"product_identifier": self.product.slug}))
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(
             detail_response.json()["characteristics_html"],
@@ -402,12 +403,12 @@ class CatalogApiTests(TestCase):
         self.assertEqual(data[0]["phone"], "+79612283100")
 
     def test_product_and_group_endpoints_include_seo_payload(self):
-        product_detail = self.client.get(reverse("products-detail", kwargs={"product_id": self.product.id}))
+        product_detail = self.client.get(reverse("products-detail", kwargs={"product_identifier": self.product.slug}))
         self.assertEqual(product_detail.status_code, 200)
         product_data = product_detail.json()
         self.assertIn("seo", product_data)
         self.assertEqual(product_data["seo"]["h1"], self.product.name)
-        self.assertEqual(product_data["seo"]["canonical_url"], f"/products/{self.product.id}")
+        self.assertEqual(product_data["seo"]["canonical_url"], f"/products/{self.product.slug}")
 
         group_list = self.client.get(reverse("groups-list"))
         self.assertEqual(group_list.status_code, 200)
@@ -546,7 +547,7 @@ class GeoSeoApiTests(TestCase):
 
     def test_product_detail_returns_city_aware_seo(self):
         response = self.client.get(
-            reverse("products-detail", kwargs={"product_id": self.product.id}),
+            reverse("products-detail", kwargs={"product_identifier": self.product.slug}),
             {"city_slug": "krasnoyarsk"},
         )
 
@@ -554,16 +555,16 @@ class GeoSeoApiTests(TestCase):
         data = response.json()
         self.assertEqual(data["seo"]["city"], "krasnoyarsk")
         self.assertIn("купить в Красноярске", data["seo"]["title"])
-        self.assertEqual(data["seo"]["canonical_url"], f"/products/{self.product.id}")
+        self.assertEqual(data["seo"]["canonical_url"], f"/products/{self.product.slug}")
 
     def test_product_seo_templates_render_city_placeholders(self):
         self.product.seo_title = "{name} купить {city_prep} | {brand}"
         self.product.seo_description = "{name} {city_prep} со склада"
-        self.product.seo_canonical_url = "/geo/{city_slug}/products/{id}"
+        self.product.seo_canonical_url = "/geo/{city_slug}/products/{slug}"
         self.product.save(update_fields=["seo_title", "seo_description", "seo_canonical_url"])
 
         response = self.client.get(
-            reverse("products-detail", kwargs={"product_id": self.product.id}),
+            reverse("products-detail", kwargs={"product_identifier": self.product.slug}),
             {"city_slug": "krasnoyarsk"},
         )
 
@@ -571,7 +572,7 @@ class GeoSeoApiTests(TestCase):
         data = response.json()
         self.assertEqual(data["seo"]["title"], "Цилиндры ENERGOROLL GEO купить в Красноярске | ENERGOROLL")
         self.assertEqual(data["seo"]["description"], "Цилиндры ENERGOROLL GEO в Красноярске со склада")
-        self.assertEqual(data["seo"]["canonical_url"], f"/geo/krasnoyarsk/products/{self.product.id}")
+        self.assertEqual(data["seo"]["canonical_url"], f"/geo/krasnoyarsk/products/{self.product.slug}")
 
     def test_group_detail_returns_city_aware_seo(self):
         response = self.client.get(

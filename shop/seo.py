@@ -179,6 +179,7 @@ def _group_context(group: Group, city: City | None = None) -> dict:
 def _product_context(product: Product, city: City | None = None) -> dict:
     return {
         "id": product.id,
+        "slug": product.slug,
         "name": product.name,
         "sku": product.sku,
         "brand": product.brand.name if product.brand else "",
@@ -235,7 +236,7 @@ def build_product_seo(product: Product, city: City | None = None) -> dict:
         f"{product.name} {city_phrase}" if city_phrase else product.name,
     )
     keywords = _first_non_empty(_render_template(product.seo_keywords, context), _product_default_keywords(product))
-    default_canonical = f"/products/{product.id}"
+    default_canonical = f"/products/{product.slug or product.id}"
     canonical_url = _first_non_empty(_render_template(product.seo_canonical_url, context), default_canonical)
     robots = _first_non_empty(_render_template(product.seo_robots, context), "index,follow")
     og_image = _product_og_image(product)

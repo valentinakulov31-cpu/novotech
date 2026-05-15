@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class PublicOrderCreateView(CreateAPIView):
     """Create a public order request from the website."""
 
+    authentication_classes = []
     serializer_class = PublicOrderCreateSerializer
     permission_classes = [AllowAny]
 

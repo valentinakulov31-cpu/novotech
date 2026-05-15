@@ -48,9 +48,10 @@ urlpatterns = [
     # Products
     path('products', ProductListView.as_view(), name='products-list'),
     path('products/filter', ProductFilterView.as_view(), name='products-filter'),
+    path('products/filters', GlobalFiltersView.as_view(), name='global-filters'),
     path('products', ProductCreateView.as_view(), name='products-create'),
-    path('products/<int:product_id>', ProductDetailView.as_view(), name='products-detail'),
-    path('products/<int:product_id>', ProductUpdateView.as_view(), name='products-update'),
+    path('products/<str:product_identifier>', ProductDetailView.as_view(), name='products-detail'),
+    path('products/<str:product_identifier>', ProductUpdateView.as_view(), name='products-update'),
     
     # Attributes
     path('groups/<int:group_id>/characteristics', CharacteristicListView.as_view(), name='characteristics-list'),
@@ -78,7 +79,6 @@ urlpatterns = [
     
     # Filters
     path('groups/<int:group_id>/filters', GroupFiltersView.as_view(), name='group-filters'),
-    path('products/filters', GlobalFiltersView.as_view(), name='global-filters'),
     path('search', GlobalSearchView.as_view(), name='global-search'),
     path('catalog/results', CatalogResultsView.as_view(), name='catalog-results'),
     path('catalog/facets', CatalogFacetsView.as_view(), name='catalog-facets'),

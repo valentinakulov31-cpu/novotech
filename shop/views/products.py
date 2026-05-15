@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 
 from shop.filtering import (
     apply_catalog_filters,
@@ -26,6 +27,13 @@ from shop.serializers import (
     ProductCertificateSerializer,
 )
 from shop.permissions import IsAdmin
+
+
+def get_product_by_identifier(product_identifier):
+    lookup = Q(slug=product_identifier)
+    if str(product_identifier).isdigit():
+        lookup |= Q(id=int(product_identifier))
+    return get_object_or_404(Product, lookup)
 
 
 @extend_schema(tags=['products'])
@@ -67,6 +75,7 @@ class ProductListView(ListAPIView):
     responses={200: {'type': 'object'}},
 )
 class ProductFilterView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -124,6 +133,7 @@ class ProductDetailView(APIView):
             'properties': {
                 'id': {'type': 'integer'},
                 'sku': {'type': 'string'},
+                'slug': {'type': 'string'},
                 'name': {'type': 'string'},
                 'price': {'type': 'number'},
                 'media_list': {'type': 'array'},
@@ -131,8 +141,8 @@ class ProductDetailView(APIView):
             }
         }}
     )
-    def get(self, request, product_id):
-        product = get_object_or_404(Product, id=product_id)
+    def get(self, request, product_identifier):
+        product = get_product_by_identifier(product_identifier)
         city = resolve_city(city_slug=request.query_params.get('city_slug'))
         
         # Get media
@@ -170,6 +180,7 @@ class ProductDetailView(APIView):
         return Response({
             'id': product.id,
             'sku': product.sku,
+            'slug': product.slug,
             'name': product.name,
             'price': float(product.price),
             'currency': product.currency,
@@ -188,6 +199,28 @@ class ProductDetailView(APIView):
             'attributes': attributes,
         })
 
+    @extend_schema(
+        request=ProductCreateSerializer,
+        responses={200: ProductSerializer}
+    )
+    def put(self, request, product_identifier):
+        product = get_product_by_identifier(product_identifier)
+        serializer = ProductCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data.copy()
+        group_id = data.pop('group_id', None)
+        brand_id = data.pop('brand_id', None)
+
+        for key, value in data.items():
+            setattr(product, key, value)
+
+        product.group_id = group_id
+        product.brand_id = brand_id
+        product.save()
+
+        return Response(ProductSerializer(product).data)
+
 
 @extend_schema(tags=['products'])
 class ProductUpdateView(UpdateAPIView):
@@ -199,8 +232,8 @@ class ProductUpdateView(UpdateAPIView):
         request=ProductCreateSerializer,
         responses={200: ProductSerializer}
     )
-    def put(self, request, product_id):
-        product = get_object_or_404(Product, id=product_id)
+    def put(self, request, product_identifier):
+        product = get_product_by_identifier(product_identifier)
         serializer = ProductCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         

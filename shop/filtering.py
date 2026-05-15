@@ -255,6 +255,7 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
         tokens = tokenize_query(q)
         search_fields = [
             "sku",
+            "slug",
             "name",
             "description",
             "characteristics_html",
@@ -368,6 +369,7 @@ def serialize_product_card(product: Product, city=None) -> dict:
     return {
         "id": product.id,
         "sku": product.sku,
+        "slug": product.slug,
         "name": product.name,
         "price": float(product.price),
         "currency": product.currency,
