@@ -6,7 +6,8 @@ import uuid
 from io import BytesIO
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
+from urllib.request import Request, urlopen
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from django import forms
@@ -178,6 +179,62 @@ def save_local_file_path(source_path: Path, folder_name: str) -> dict:
     }
 
 
+def filename_from_remote_response(url: str, response) -> str:
+    content_disposition = response.headers.get("Content-Disposition", "")
+    match = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', content_disposition, flags=re.IGNORECASE)
+    if match:
+        filename = unquote(match.group(1)).strip()
+        if filename:
+            return Path(filename).name
+    parsed_name = Path(unquote(urlparse(url).path)).name
+    return parsed_name or f"remote-{uuid.uuid4().hex[:8]}"
+
+
+def save_remote_file_url(url: str, folder_name: str) -> dict:
+    media_root = Path(settings.MEDIA_ROOT)
+    target_dir = media_root / "admin_uploads" / folder_name
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    request = Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; NovotechMediaImporter/1.0)",
+        },
+    )
+    with urlopen(request, timeout=REMOTE_IMPORT_TIMEOUT_SECONDS) as response:
+        content_length = response.headers.get("Content-Length")
+        if content_length and int(content_length) > REMOTE_IMPORT_MAX_BYTES:
+            raise ValidationError(f"Remote file is larger than {REMOTE_IMPORT_MAX_BYTES // 1024 // 1024} MB: {url}")
+
+        original_name = filename_from_remote_response(url, response)
+        suffix = Path(original_name).suffix
+        filename = f"{uuid.uuid4().hex}{suffix}"
+        storage_path = target_dir / filename
+        downloaded = 0
+
+        with storage_path.open("wb") as destination:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                downloaded += len(chunk)
+                if downloaded > REMOTE_IMPORT_MAX_BYTES:
+                    storage_path.unlink(missing_ok=True)
+                    raise ValidationError(f"Remote file is larger than {REMOTE_IMPORT_MAX_BYTES // 1024 // 1024} MB: {url}")
+                destination.write(chunk)
+
+    relative_path = storage_path.relative_to(media_root).as_posix()
+    mime_type = mimetypes.guess_type(original_name)[0] or mimetypes.guess_type(str(storage_path))[0] or "application/octet-stream"
+
+    return {
+        "storage_path": str(storage_path),
+        "url": f"{settings.MEDIA_URL}{relative_path}",
+        "mime_type": mime_type,
+        "size_bytes": storage_path.stat().st_size,
+        "title": original_name,
+    }
+
+
 def resolve_import_file_reference(value, folder_name: str):
     text = str(value or "").strip()
     if not text:
@@ -186,6 +243,13 @@ def resolve_import_file_reference(value, folder_name: str):
     local_path = normalize_local_file_path(text)
     if local_path:
         return save_local_file_path(local_path, folder_name), None
+
+    parsed = urlparse(text)
+    if parsed.scheme in {"http", "https"}:
+        try:
+            return save_remote_file_url(text, folder_name), None
+        except Exception as exc:
+            return None, f"Remote file could not be downloaded: {text}. {exc}"
 
     if is_probable_url(text):
         mime_type = guess_media_mime_type(text)
@@ -672,6 +736,8 @@ CATALOG_ONLY_TABLE_STYLE_MAP = {
     "background-color": "white",
     "font-size": "14px",
 }
+REMOTE_IMPORT_MAX_BYTES = 100 * 1024 * 1024
+REMOTE_IMPORT_TIMEOUT_SECONDS = 30
 
 
 def parse_html_attrs(attrs_text: str) -> dict[str, str]:
@@ -2542,3 +2608,138 @@ class CharacteristicAdmin(admin.ModelAdmin):
 class ProductCharacteristicAdmin(admin.ModelAdmin):
     list_display = ("id", "product", "characteristic", "value", "created_at")
     search_fields = ("product__name", "characteristic__name", "value")
+
+
+admin.site.site_header = "Novotech admin"
+admin.site.site_title = "Novotech admin"
+admin.site.index_title = "Управление сайтом"
+
+
+ADMIN_SECTION_ORDER = [
+    (
+        "catalog",
+        "Каталог",
+        [
+            "shop.Product",
+            "shop.Group",
+            "shop.Brand",
+            "shop.Characteristic",
+            "shop.ProductCharacteristic",
+        ],
+    ),
+    (
+        "media",
+        "Медиа и файлы",
+        [
+            "shop.MediaLibrary",
+            "shop.ProductMedia",
+            "shop.ProductGalleryItem",
+            "shop.ProductDocument",
+            "shop.ProductCertificate",
+            "shop.Sert",
+            "shop.NewsAttachment",
+        ],
+    ),
+    (
+        "content",
+        "Контент сайта",
+        [
+            "shop.Slider",
+            "shop.News",
+            "shop.HtmlContent",
+            "shop.ContactInfo",
+            "shop.Agent",
+            "shop.City",
+        ],
+    ),
+    (
+        "orders",
+        "Заявки и заказы",
+        [
+            "shop.Inquiry",
+            "shop.PublicOrder",
+        ],
+    ),
+    (
+        "settings",
+        "Настройки и доступ",
+        [
+            "shop.OrderEmailSettings",
+            "shop.OrderEmailRecipient",
+            "auth.User",
+            "auth.Group",
+        ],
+    ),
+]
+
+ADMIN_MODEL_NAMES = {
+    "shop.Product": "Товары",
+    "shop.Group": "Категории",
+    "shop.Brand": "Бренды",
+    "shop.Characteristic": "Характеристики",
+    "shop.ProductCharacteristic": "Значения характеристик",
+    "shop.MediaLibrary": "Библиотека медиа",
+    "shop.ProductMedia": "Превью товаров",
+    "shop.ProductGalleryItem": "Галерея товаров",
+    "shop.ProductDocument": "Документы товаров",
+    "shop.ProductCertificate": "Сертификаты товаров",
+    "shop.Sert": "Общие сертификаты",
+    "shop.NewsAttachment": "Файлы новостей",
+    "shop.Slider": "Слайдер",
+    "shop.News": "Новости",
+    "shop.HtmlContent": "HTML-блоки",
+    "shop.ContactInfo": "Контакты компании",
+    "shop.Agent": "Менеджеры",
+    "shop.City": "Города для SEO",
+    "shop.Inquiry": "Заявки",
+    "shop.PublicOrder": "Заказы",
+    "shop.OrderEmailSettings": "Шаблон письма о заказе",
+    "shop.OrderEmailRecipient": "Получатели писем",
+    "auth.User": "Пользователи",
+    "auth.Group": "Группы прав",
+}
+
+
+def grouped_admin_app_list(request, app_label=None):
+    app_dict = admin.site._build_app_dict(request, app_label)
+    model_map = {}
+    for current_app_label, app in app_dict.items():
+        for model in app.get("models", []):
+            key = f"{current_app_label}.{model['object_name']}"
+            model = model.copy()
+            model["name"] = ADMIN_MODEL_NAMES.get(key, model["name"])
+            model_map[key] = model
+
+    grouped_apps = []
+    used_keys = set()
+    for section_label, section_name, model_keys in ADMIN_SECTION_ORDER:
+        models = [model_map[key] for key in model_keys if key in model_map]
+        if not models:
+            continue
+        used_keys.update(key for key in model_keys if key in model_map)
+        grouped_apps.append(
+            {
+                "name": section_name,
+                "app_label": section_label,
+                "app_url": "",
+                "has_module_perms": True,
+                "models": models,
+            }
+        )
+
+    fallback_models = [model for key, model in sorted(model_map.items()) if key not in used_keys]
+    if fallback_models:
+        grouped_apps.append(
+            {
+                "name": "Прочее",
+                "app_label": "other",
+                "app_url": "",
+                "has_module_perms": True,
+                "models": fallback_models,
+            }
+        )
+
+    return grouped_apps
+
+
+admin.site.get_app_list = grouped_admin_app_list

@@ -97,6 +97,7 @@ class GlobalSearchView(APIView):
             "sku",
             "name",
             "description",
+            "characteristics_html",
             "search_tsv",
             "group__name",
             "group__slug",

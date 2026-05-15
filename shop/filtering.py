@@ -257,6 +257,7 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
             "sku",
             "name",
             "description",
+            "characteristics_html",
             "search_tsv",
             "group__name",
             "group__slug",

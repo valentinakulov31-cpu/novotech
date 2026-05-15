@@ -4,6 +4,7 @@ from io import BytesIO
 from zipfile import ZipFile
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from django.core import mail
 from django.contrib.admin.sites import AdminSite
@@ -12,6 +13,7 @@ from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test.client import RequestFactory
 from django.http import HttpResponse
 from rest_framework.test import APIClient
@@ -69,6 +71,21 @@ TEST_GIF = (
     b"\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00"
     b"\x00\x02\x02D\x01\x00;"
 )
+
+
+class FakeRemoteResponse:
+    def __init__(self, payload, headers=None):
+        self.payload = BytesIO(payload)
+        self.headers = headers or {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self, size=-1):
+        return self.payload.read(size)
 
 
 @override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
@@ -283,6 +300,36 @@ class CatalogApiTests(TestCase):
             list_response.json()[0]["characteristics_html"],
             "<div><h3>Характеристики</h3><p>Толщина, покрытие</p></div>",
         )
+
+    def test_global_search_uses_characteristics_html(self):
+        self.product.characteristics_html = "<table><tr><td>Уникальный показатель NovaTherm</td></tr></table>"
+        self.product.save(update_fields=["characteristics_html"])
+
+        response = self.client.get(reverse("global-search"), {"q": "NovaTherm"})
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(any(item["sku"] == "ER-0001" for item in data["results"]["products"]))
+
+    def test_catalog_search_uses_characteristics_html(self):
+        self.product.characteristics_html = "<table><tr><td>Уникальный показатель NovaTherm</td></tr></table>"
+        self.product.save(update_fields=["characteristics_html"])
+
+        response = self.client.post(
+            reverse("catalog-results"),
+            {
+                "context": {"q": "NovaTherm"},
+                "filters": {},
+                "page": 1,
+                "page_size": 12,
+                "sort": "relevance",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(any(item["sku"] == "ER-0001" for item in data["results"]))
 
     def test_products_list_supports_popular_random_eight(self):
         for index in range(9):
@@ -745,6 +792,96 @@ class ProductExportAdminTests(TestCase):
             override.disable()
             shutil.rmtree(media_root, ignore_errors=True)
             shutil.rmtree(source_dir, ignore_errors=True)
+
+    def test_import_downloads_remote_media_to_local_storage(self):
+        media_root = tempfile.mkdtemp()
+        override = override_settings(MEDIA_ROOT=media_root)
+        override.enable()
+        try:
+            from openpyxl import Workbook
+
+            workbook = Workbook()
+            worksheet = workbook.active
+            worksheet.append(["sku", "name", "price", "currency", "media_urls"])
+            worksheet.append([
+                "IMP-REMOTE",
+                "Imported remote media product",
+                "55.00",
+                "RUB",
+                "https://cdn.example.com/preview.jpg",
+            ])
+            buffer = BytesIO()
+            workbook.save(buffer)
+            buffer.seek(0)
+
+            fake_response = FakeRemoteResponse(
+                TEST_GIF,
+                headers={
+                    "Content-Length": str(len(TEST_GIF)),
+                    "Content-Disposition": 'attachment; filename="preview.jpg"',
+                },
+            )
+            with patch("shop.admin.urlopen", return_value=fake_response):
+                counters, warnings = import_products_from_workbook(buffer)
+
+            product = Product.objects.get(sku="IMP-REMOTE")
+            media = ProductMedia.objects.get(product=product)
+
+            self.assertEqual(warnings, [])
+            self.assertEqual(counters["media_items_imported"], 1)
+            self.assertTrue(media.url.startswith("/static/admin_uploads/product_media/"))
+            self.assertNotEqual(media.url, "https://cdn.example.com/preview.jpg")
+            self.assertTrue(Path(media.storage_path).exists())
+            self.assertEqual(Path(media.storage_path).read_bytes(), TEST_GIF)
+            self.assertEqual(product.media, [media.url])
+        finally:
+            override.disable()
+            shutil.rmtree(media_root, ignore_errors=True)
+
+    def test_localize_remote_media_command_downloads_existing_urls(self):
+        media_root = tempfile.mkdtemp()
+        override = override_settings(MEDIA_ROOT=media_root)
+        override.enable()
+        try:
+            product = Product.objects.create(
+                sku="REMOTE-EXISTING",
+                name="Existing remote media product",
+                price=Decimal("10.00"),
+                currency="RUB",
+                media=["https://cdn.example.com/json-preview.jpg"],
+                available=True,
+            )
+            product_media = ProductMedia.objects.create(
+                product=product,
+                storage_path="",
+                url="https://cdn.example.com/preview.jpg",
+                mime_type="image/jpeg",
+                media_kind="image",
+                size_bytes=0,
+                is_primary=True,
+            )
+
+            def fake_urlopen(request, timeout=30):
+                return FakeRemoteResponse(
+                    TEST_GIF,
+                    headers={
+                        "Content-Length": str(len(TEST_GIF)),
+                        "Content-Disposition": 'attachment; filename="preview.jpg"',
+                    },
+                )
+
+            with patch("shop.management.commands.localize_remote_media.urlopen", side_effect=fake_urlopen):
+                call_command("localize_remote_media")
+
+            product.refresh_from_db()
+            product_media.refresh_from_db()
+
+            self.assertTrue(product_media.url.startswith("/static/admin_uploads/product_media/"))
+            self.assertTrue(Path(product_media.storage_path).exists())
+            self.assertTrue(product.media[0].startswith("/static/admin_uploads/products/"))
+        finally:
+            override.disable()
+            shutil.rmtree(media_root, ignore_errors=True)
 
 
 @override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
