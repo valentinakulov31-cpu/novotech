@@ -2229,6 +2229,8 @@ class ContactInfoAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
         "title",
         "full_name",
         "address",
+        "latitude",
+        "longitude",
         "schedule",
         "phone",
         "email",
@@ -2241,10 +2243,16 @@ class ContactInfoAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
 
     def render_preview_html(self, obj):
         full_name_block = f"<p><strong>Contact person:</strong> {escape(obj.full_name)}</p>" if obj.full_name else ""
+        coordinates_block = (
+            f"<p><strong>Coordinates:</strong> {escape(obj.latitude)} / {escape(obj.longitude)}</p>"
+            if obj.latitude is not None and obj.longitude is not None
+            else ""
+        )
         return (
             f"<section><h1>{escape(obj.title)}</h1>"
             f"{full_name_block}"
             f"<p><strong>Address:</strong><br>{render_multiline_text(obj.address)}</p>"
+            f"{coordinates_block}"
             f"<p><strong>Schedule:</strong><br>{render_multiline_text(obj.schedule)}</p>"
             f"<p><strong>Phone:</strong> {escape(obj.phone)}</p>"
             f"<p><strong>Email:</strong> {escape(obj.email)}</p></section>"

@@ -1135,6 +1135,8 @@ class ContentApiTests(TestCase):
         ContactInfo.objects.create(
             title="НАШИ КОНТАКТЫ",
             address="630007, г. Новосибирск,\nпер. Пристанский, 2",
+            latitude=Decimal("55.014575"),
+            longitude=Decimal("82.938639"),
             schedule="ПН-ЧТ: с 9.00 до 18.00\nПТ: с 9.00 до 17.00",
             phone="+7 (383) 263-20-99",
             email="nskteplo-sib.ru",
@@ -1157,6 +1159,8 @@ class ContentApiTests(TestCase):
         self.assertNotIn("updated_at", data)
         self.assertEqual(data["title"], "НАШИ КОНТАКТЫ")
         self.assertEqual(data["phone"], "+7 (383) 263-20-99")
+        self.assertEqual(data["latitude"], "55.014575")
+        self.assertEqual(data["longitude"], "82.938639")
         self.assertIn("Новосибирск", data["address"])
 
 
