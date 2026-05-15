@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.postgres.search import TrigramSimilarity
-from django.db.models import Case, Count, F, FloatField, IntegerField, Max, Min, Q, Value, When, Window
+from django.db.models import Case, Count, F, FloatField, Func, IntegerField, Max, Min, Q, Value, When, Window
 from django.db.models.functions import Cast, Coalesce, Greatest, RowNumber
 
 from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic
@@ -9,6 +9,11 @@ from shop.seo import build_product_seo, resolve_city
 
 
 SEARCH_FUZZY_THRESHOLD = 0.18
+
+
+class RegexpReplace(Func):
+    function = "REGEXP_REPLACE"
+    arity = 4
 
 
 def parse_bool(value):
@@ -83,6 +88,17 @@ def fuzzy_similarity_expression(query, tokens, fields):
     if not expressions:
         return Value(0.0, output_field=FloatField())
     return Greatest(*expressions, Value(0.0, output_field=FloatField()))
+
+
+def annotate_characteristics_search_text(queryset):
+    return queryset.annotate(
+        characteristics_search_text=RegexpReplace(
+            Coalesce("characteristics_html", Value("")),
+            Value(r"<[^>]+>"),
+            Value(" "),
+            Value("g"),
+        )
+    )
 
 
 def apply_ranked_search(queryset, query, exact_fields, fuzzy_fields=None, require_all_tokens=True, threshold=SEARCH_FUZZY_THRESHOLD):
@@ -257,7 +273,7 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
             "sku",
             "name",
             "description",
-            "characteristics_html",
+            "characteristics_search_text",
             "search_tsv",
             "group__name",
             "group__slug",
@@ -268,7 +284,7 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
             "characteristics__characteristic__slug",
         ]
         queryset = apply_ranked_search(
-            queryset,
+            annotate_characteristics_search_text(queryset),
             q,
             exact_fields=search_fields,
             fuzzy_fields=search_fields,

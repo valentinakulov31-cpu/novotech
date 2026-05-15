@@ -302,23 +302,41 @@ class CatalogApiTests(TestCase):
         )
 
     def test_global_search_uses_characteristics_html(self):
-        self.product.characteristics_html = "<table><tr><td>Уникальный показатель NovaTherm</td></tr></table>"
+        self.product.characteristics_html = (
+            "<table><tr>"
+            "<td>Теплопроводность, λ10</td>"
+            "<td>Вт/м·°С</td>"
+            "<td>0,034</td>"
+            "<td>0,034</td>"
+            "<td>0,036</td>"
+            "<td>ГОСТ 31925-2011</td>"
+            "</tr></table>"
+        )
         self.product.save(update_fields=["characteristics_html"])
 
-        response = self.client.get(reverse("global-search"), {"q": "NovaTherm"})
+        response = self.client.get(reverse("global-search"), {"q": "Теплопроводность 0,034"})
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(any(item["sku"] == "ER-0001" for item in data["results"]["products"]))
 
     def test_catalog_search_uses_characteristics_html(self):
-        self.product.characteristics_html = "<table><tr><td>Уникальный показатель NovaTherm</td></tr></table>"
+        self.product.characteristics_html = (
+            "<table><tr>"
+            "<td>Теплопроводность, λ10</td>"
+            "<td>Вт/м·°С</td>"
+            "<td>0,034</td>"
+            "<td>0,034</td>"
+            "<td>0,036</td>"
+            "<td>ГОСТ 31925-2011</td>"
+            "</tr></table>"
+        )
         self.product.save(update_fields=["characteristics_html"])
 
         response = self.client.post(
             reverse("catalog-results"),
             {
-                "context": {"q": "NovaTherm"},
+                "context": {"q": "теплопроводность гост"},
                 "filters": {},
                 "page": 1,
                 "page_size": 12,
