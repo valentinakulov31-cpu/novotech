@@ -80,7 +80,7 @@ class Brand(models.Model):
     """Product brands."""
 
     name = models.CharField(max_length=255)
-    slug = models.CharField(max_length=255, unique=True)
+    slug = models.CharField(max_length=255, unique=True, blank=True, null=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
 
     class Meta:
@@ -320,6 +320,10 @@ class News(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        self.slug = (self.slug or "").strip() or None
+        super().save(*args, **kwargs)
 
     @property
     def is_published(self):

@@ -1026,12 +1026,19 @@ class SliderApiTests(TestCase):
             sort_order=0,
             status=PUBLISH_STATUS_DRAFT,
         )
+        Slider.objects.create(
+            image="/static/slider-no-slug.jpg",
+            title="No slug",
+            text="No slug text",
+            sort_order=3,
+            status=PUBLISH_STATUS_PUBLISHED,
+        )
 
     def test_slider_endpoint_returns_active_items_as_array_in_order(self):
         response = self.client.get(reverse("slider-list"))
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual([item["slug"] for item in data], ["first", "second"])
+        self.assertEqual([item["slug"] for item in data], ["first", "second", None])
         self.assertNotIn("hidden", [item["slug"] for item in data])
 
 
