@@ -40,6 +40,7 @@ from shop.models import (
     Characteristic,
     City,
     ContactInfo,
+    Agent,
     Group,
     HtmlContent,
     Inquiry,
@@ -299,6 +300,41 @@ class CatalogApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(len(data), 8)
+
+    def test_agents_endpoint_returns_published_agents_in_order(self):
+        Agent.objects.create(
+            full_name="Draft Agent",
+            position="Hidden",
+            email="draft@example.com",
+            phone="+70000000000",
+            sort_order=0,
+            status=PUBLISH_STATUS_DRAFT,
+        )
+        Agent.objects.create(
+            full_name="Second Agent",
+            position="Sales specialist",
+            email="second@example.com",
+            phone="+79095338586",
+            sort_order=2,
+            status=PUBLISH_STATUS_PUBLISHED,
+        )
+        Agent.objects.create(
+            full_name="First Agent",
+            position="Client manager",
+            email="first@example.com",
+            phone="+79612283100",
+            sort_order=1,
+            status=PUBLISH_STATUS_PUBLISHED,
+        )
+
+        response = self.client.get(reverse("agents-list"))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual([item["full_name"] for item in data], ["First Agent", "Second Agent"])
+        self.assertEqual(data[0]["position"], "Client manager")
+        self.assertEqual(data[0]["email"], "first@example.com")
+        self.assertEqual(data[0]["phone"], "+79612283100")
 
     def test_product_and_group_endpoints_include_seo_payload(self):
         product_detail = self.client.get(reverse("products-detail", kwargs={"product_id": self.product.id}))

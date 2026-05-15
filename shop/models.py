@@ -415,6 +415,39 @@ class ContactInfo(models.Model):
         return self.status == PUBLISH_STATUS_PUBLISHED
 
 
+class Agent(models.Model):
+    """Sales/contact agent displayed on the public contacts block."""
+
+    full_name = models.CharField(max_length=255)
+    position = models.CharField(max_length=255)
+    email = models.EmailField(max_length=255)
+    phone = models.CharField(max_length=100)
+    sort_order = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, choices=PUBLISH_STATUS_CHOICES, default=PUBLISH_STATUS_DRAFT)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        db_table = "agents"
+        ordering = ["sort_order", "id"]
+        verbose_name = "Agent"
+        verbose_name_plural = "Agents"
+
+    def __str__(self):
+        return self.full_name
+
+    @property
+    def is_active(self):
+        return self.status == PUBLISH_STATUS_PUBLISHED
+
+
 class PublicOrder(models.Model):
     """Orders submitted from the website."""
 

@@ -28,6 +28,7 @@ from shop.views.public_orders import PublicOrderCreateView
 from shop.views.html_content import HtmlContentView
 from shop.views.contacts import ContactInfoView
 from shop.views.cities import CityListView
+from shop.views.agents import AgentListView
 
 urlpatterns = [
     path('cities', CityListView.as_view(), name='cities-list'),
@@ -73,6 +74,7 @@ urlpatterns = [
     path('public-orders', PublicOrderCreateView.as_view(), name='public-order-create'),
     path('html-content', HtmlContentView.as_view(), name='html-content'),
     path('contacts', ContactInfoView.as_view(), name='contact-info'),
+    path('agents', AgentListView.as_view(), name='agents-list'),
     
     # Filters
     path('groups/<int:group_id>/filters', GroupFiltersView.as_view(), name='group-filters'),

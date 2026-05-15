@@ -6,7 +6,7 @@ from shop.seo import build_group_seo, build_product_seo, resolve_city
 from shop.models import (
     Brand, City, Group, Product, ProductMedia,
     ProductGalleryItem, ProductDocument, ProductCertificate, Characteristic, ProductCharacteristic,
-    News, NewsAttachment, Sert, Slider, Inquiry, HtmlContent, ContactInfo, PublicOrder,
+    News, NewsAttachment, Sert, Slider, Inquiry, HtmlContent, ContactInfo, Agent, PublicOrder,
     PublicOrderItem, OrderEmailRecipient, OrderEmailSettings, PUBLISH_STATUS_CHOICES,
     PUBLISH_STATUS_DRAFT, PUBLISH_STATUS_PUBLISHED,
 )
@@ -283,6 +283,12 @@ class ContactInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactInfo
         fields = ['title', 'full_name', 'address', 'schedule', 'phone', 'email']
+
+
+class AgentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Agent
+        fields = ['id', 'full_name', 'position', 'email', 'phone', 'sort_order']
 
 
 class OrderEmailRecipientSerializer(serializers.ModelSerializer):

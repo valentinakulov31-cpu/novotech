@@ -213,6 +213,7 @@ SPECTACULAR_SETTINGS = {
         {'name': 'media', 'description': 'Медиа-файлы товаров'},
         {'name': 'orders', 'description': 'Заказы и заявки'},
         {'name': 'news', 'description': 'Новости магазина'},
+        {'name': 'agents', 'description': 'Менеджеры и консультанты'},
         {'name': 'filters', 'description': 'Фильтры каталога'},
     ],
 }
