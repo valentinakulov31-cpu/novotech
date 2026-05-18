@@ -96,23 +96,11 @@ class GlobalSearchView(APIView):
             )
 
         product_fields = [
-            "sku",
-            "slug",
-            "name",
-            "description",
-            "characteristics_html",
-            "search_tsv",
-            "group__name",
-            "group__slug",
-            "brand__name",
-            "brand__slug",
-            "characteristics__value",
-            "characteristics__characteristic__name",
-            "characteristics__characteristic__slug",
+            "search_index",
         ]
-        group_fields = ["name", "slug", "description"]
-        brand_fields = ["name", "slug"]
-        characteristic_fields = ["name", "slug", "group__name", "group__slug"]
+        group_fields = ["search_index"]
+        brand_fields = ["search_index"]
+        characteristic_fields = ["search_index"]
 
         products = (
             apply_ranked_search(

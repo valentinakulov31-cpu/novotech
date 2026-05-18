@@ -97,6 +97,12 @@ def assign_sort_order(instance, filters=None):
         instance.sort_order = next_sort_order(instance.__class__, filters=filters)
 
 
+def include_update_fields(kwargs, *field_names):
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None:
+        kwargs["update_fields"] = set(update_fields).union(field_names)
+
+
 def normalize_synonyms(value):
     if not value:
         return []
@@ -116,12 +122,44 @@ def normalize_synonyms(value):
     return result
 
 
+def search_text_parts(*values):
+    parts = []
+    for value in values:
+        if value in (None, ""):
+            continue
+        if isinstance(value, (list, tuple, set)):
+            parts.extend(search_text_parts(*value))
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+        parts.append(text)
+        transliterated = transliterate_slug(text).replace("-", " ").strip()
+        if transliterated and transliterated.lower() != text.lower():
+            parts.append(transliterated)
+    return parts
+
+
+def build_search_index(*values):
+    parts = search_text_parts(*values)
+    seen = set()
+    result = []
+    for part in parts:
+        normalized = " ".join(str(part).lower().split())
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+    return " ".join(result)
+
+
 class Brand(models.Model):
     """Product brands."""
 
     name = models.CharField(max_length=255)
     slug = models.CharField(max_length=255, unique=True, blank=True, null=True)
     search_synonyms = models.JSONField(default=list, blank=True)
+    search_index = models.TextField(default="", blank=True, db_index=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
 
     class Meta:
@@ -136,6 +174,8 @@ class Brand(models.Model):
         if transliterated and transliterated.lower() != str(self.name or "").strip().lower():
             synonyms = normalize_synonyms([*synonyms, transliterated, *transliterated.split()])
         self.search_synonyms = synonyms
+        self.search_index = build_search_index(self.name, self.slug, self.search_synonyms)
+        include_update_fields(kwargs, "search_synonyms", "search_index")
         super().save(*args, **kwargs)
 
 
@@ -158,10 +198,6 @@ class City(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        self.search_synonyms = normalize_synonyms(self.search_synonyms)
-        super().save(*args, **kwargs)
-
-    def save(self, *args, **kwargs):
         assign_sort_order(self)
         super().save(*args, **kwargs)
 
@@ -179,6 +215,7 @@ class Group(models.Model):
     name = models.CharField(max_length=255)
     slug = models.CharField(max_length=255, unique=True)
     search_synonyms = models.JSONField(default=list, blank=True)
+    search_index = models.TextField(default="", blank=True, db_index=True)
     description = models.TextField(null=True, blank=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
     seo_title = models.CharField(max_length=255, null=True, blank=True)
@@ -193,6 +230,12 @@ class Group(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        self.search_synonyms = normalize_synonyms(self.search_synonyms)
+        self.search_index = build_search_index(self.name, self.slug, self.description, self.search_synonyms)
+        include_update_fields(kwargs, "search_synonyms", "search_index")
+        super().save(*args, **kwargs)
 
 
 class Product(models.Model):
@@ -211,6 +254,7 @@ class Product(models.Model):
     media = models.JSONField(null=True, blank=True)
     available = models.BooleanField(default=True)
     search_tsv = models.TextField("Search synonyms", null=True, blank=True)
+    search_index = models.TextField(default="", blank=True, db_index=True)
     seo_title = models.CharField(max_length=255, null=True, blank=True)
     seo_h1 = models.CharField(max_length=255, null=True, blank=True)
     seo_description = models.TextField(null=True, blank=True)
@@ -229,6 +273,31 @@ class Product(models.Model):
             self.slug = unique_product_slug(self, self.name or self.sku)
         else:
             self.slug = unique_product_slug(self, self.slug)
+        characteristic_values = []
+        if self.pk:
+            characteristic_values = list(
+                self.characteristics.select_related("characteristic").values_list(
+                    "value",
+                    "characteristic__name",
+                    "characteristic__slug",
+                )
+            )
+        self.search_index = build_search_index(
+            self.sku,
+            self.slug,
+            self.name,
+            self.description,
+            self.characteristics_html,
+            self.search_tsv,
+            self.brand.name if self.brand else "",
+            self.brand.slug if self.brand else "",
+            self.brand.search_synonyms if self.brand else [],
+            self.group.name if self.group else "",
+            self.group.slug if self.group else "",
+            self.group.search_synonyms if self.group else [],
+            characteristic_values,
+        )
+        include_update_fields(kwargs, "slug", "search_index")
         super().save(*args, **kwargs)
 
 
@@ -320,6 +389,7 @@ class Characteristic(models.Model):
     slug = models.CharField(max_length=255, default="")
     data_type = models.CharField(max_length=50, choices=CHARACTERISTIC_TYPE_CHOICES, default=CHARACTERISTIC_TYPE_TEXT)
     unit = models.CharField(max_length=50, null=True, blank=True)
+    search_index = models.TextField(default="", blank=True, db_index=True)
     is_filterable = models.BooleanField(default=True)
     is_searchable = models.BooleanField(default=False)
 
@@ -328,6 +398,17 @@ class Characteristic(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        self.search_index = build_search_index(
+            self.name,
+            self.slug,
+            self.unit,
+            self.group.name if self.group else "",
+            self.group.slug if self.group else "",
+        )
+        include_update_fields(kwargs, "search_index")
+        super().save(*args, **kwargs)
 
 
 class ProductCharacteristic(models.Model):
@@ -343,6 +424,17 @@ class ProductCharacteristic(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.characteristic.name}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.product_id:
+            self.product.save(update_fields=["search_index"])
+
+    def delete(self, *args, **kwargs):
+        product = self.product
+        result = super().delete(*args, **kwargs)
+        product.save(update_fields=["search_index"])
+        return result
 
 
 class News(models.Model):

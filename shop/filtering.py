@@ -1,8 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
-from django.contrib.postgres.search import TrigramSimilarity
-from django.db.models import Case, Count, F, FloatField, IntegerField, Max, Min, Q, Value, When, Window
-from django.db.models.functions import Cast, Coalesce, Greatest, RowNumber
+from django.db.models import Case, Count, FloatField, IntegerField, Max, Min, Q, Value, When
+from django.db.models.functions import Cast
 
 from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic, transliterate_slug
 from shop.seo import build_product_seo, resolve_city
@@ -38,6 +37,18 @@ def parse_decimal(value):
 def tokenize_query(query):
     tokens = []
     seen = set()
+    for variants in tokenize_query_groups(query):
+        for variant in variants:
+            key = variant.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            tokens.append(variant)
+    return tokens
+
+
+def tokenize_query_groups(query):
+    tokens = []
     for token in str(query or "").split():
         token = token.strip()
         if not token:
@@ -46,12 +57,16 @@ def tokenize_query(query):
         transliterated = transliterate_slug(token).replace("-", " ").strip()
         if transliterated:
             variants.extend(part for part in transliterated.split() if part)
+        group = []
+        seen = set()
         for variant in variants:
             key = variant.lower()
             if key in seen:
                 continue
             seen.add(key)
-            tokens.append(variant)
+            group.append(variant)
+        if group:
+            tokens.append(group)
     return tokens
 
 
@@ -77,6 +92,24 @@ def token_match_query(tokens, fields, require_all=True):
     return query
 
 
+def token_group_match_query(token_groups, fields, require_all=True):
+    if not token_groups:
+        return Q()
+    queries = []
+    for variants in token_groups:
+        group_query = Q()
+        for token in variants:
+            group_query |= any_field_matches(token, fields)
+        queries.append(group_query)
+    query = Q()
+    for group_query in queries:
+        if require_all:
+            query &= group_query
+        else:
+            query |= group_query
+    return query
+
+
 def score_expression(tokens, fields):
     score = Value(0, output_field=IntegerField())
     for token in tokens:
@@ -89,40 +122,34 @@ def score_expression(tokens, fields):
     return score
 
 
-def fuzzy_similarity_expression(query, tokens, fields):
-    expressions = []
-    for field in fields:
-        coalesced_field = Coalesce(field, Value(""))
-        expressions.append(TrigramSimilarity(coalesced_field, query))
-        for token in tokens:
-            expressions.append(TrigramSimilarity(coalesced_field, token))
-    if not expressions:
-        return Value(0.0, output_field=FloatField())
-    return Greatest(*expressions, Value(0.0, output_field=FloatField()))
+def score_group_expression(token_groups, fields):
+    score = Value(0, output_field=IntegerField())
+    for variants in token_groups:
+        group_query = Q()
+        for token in variants:
+            group_query |= any_field_matches(token, fields)
+        score += Case(
+            When(group_query, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    return score
 
 
 def apply_ranked_search(queryset, query, exact_fields, fuzzy_fields=None, require_all_tokens=True, threshold=SEARCH_FUZZY_THRESHOLD):
     query = (query or "").strip()
-    tokens = tokenize_query(query)
-    if not tokens:
+    token_groups = tokenize_query_groups(query)
+    if not token_groups:
         return queryset
 
-    fuzzy_fields = fuzzy_fields or exact_fields
     queryset = queryset.annotate(
-        search_exact_score=score_expression(tokens, exact_fields),
-        search_similarity=fuzzy_similarity_expression(query, tokens, fuzzy_fields),
+        search_exact_score=score_group_expression(token_groups, exact_fields),
+        search_similarity=Value(0.0, output_field=FloatField()),
     ).annotate(
-        search_rank=Cast("search_exact_score", FloatField()) + Cast("search_similarity", FloatField())
+        search_rank=Cast("search_exact_score", FloatField())
     )
-    exact_query = token_match_query(tokens, exact_fields, require_all=require_all_tokens)
-    queryset = queryset.filter(exact_query | Q(search_similarity__gte=threshold))
-    queryset = queryset.annotate(
-        _search_row_number=Window(
-            expression=RowNumber(),
-            partition_by=[F("pk")],
-            order_by=[F("search_rank").desc(), F("search_similarity").desc(), F("pk").asc()],
-        )
-    ).filter(_search_row_number=1)
+    exact_query = token_group_match_query(token_groups, exact_fields, require_all=require_all_tokens)
+    queryset = queryset.filter(exact_query)
     return queryset.distinct()
 
 
@@ -269,19 +296,7 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
     if q:
         tokens = tokenize_query(q)
         search_fields = [
-            "sku",
-            "slug",
-            "name",
-            "description",
-            "characteristics_html",
-            "search_tsv",
-            "group__name",
-            "group__slug",
-            "brand__name",
-            "brand__slug",
-            "characteristics__value",
-            "characteristics__characteristic__name",
-            "characteristics__characteristic__slug",
+            "search_index",
         ]
         queryset = apply_ranked_search(
             queryset,
