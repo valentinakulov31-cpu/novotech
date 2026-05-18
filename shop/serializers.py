@@ -274,7 +274,7 @@ class HtmlContentSerializer(serializers.ModelSerializer):
 class ContactInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactInfo
-        fields = ['title', 'full_name', 'address', 'latitude', 'longitude', 'schedule', 'phone', 'email']
+        fields = ['title', 'full_name', 'address', 'latitude', 'longitude', 'yandex_link', 'gis_link', 'schedule', 'phone', 'email']
 
 
 class AgentSerializer(serializers.ModelSerializer):

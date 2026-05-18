@@ -2195,7 +2195,7 @@ class ContactInfoAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
     singleton_publication = True
     list_display = ("id", "title", "phone", "email", "status", "updated_at", "updated_by", "preview_link")
     list_filter = ("status",)
-    search_fields = ("title", "full_name", "address", "schedule", "phone", "email")
+    search_fields = ("title", "full_name", "address", "schedule", "phone", "email", "yandex_link", "gis_link")
     readonly_fields = ("preview_link", "created_at", "updated_at", "updated_by")
     fields = (
         "title",
@@ -2203,6 +2203,8 @@ class ContactInfoAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
         "address",
         "latitude",
         "longitude",
+        "yandex_link",
+        "gis_link",
         "schedule",
         "phone",
         "email",
@@ -2225,6 +2227,8 @@ class ContactInfoAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
             f"{full_name_block}"
             f"<p><strong>Address:</strong><br>{render_multiline_text(obj.address)}</p>"
             f"{coordinates_block}"
+            f"<p><strong>Yandex:</strong> {escape(obj.yandex_link or '')}</p>"
+            f"<p><strong>2GIS:</strong> {escape(obj.gis_link or '')}</p>"
             f"<p><strong>Schedule:</strong><br>{render_multiline_text(obj.schedule)}</p>"
             f"<p><strong>Phone:</strong> {escape(obj.phone)}</p>"
             f"<p><strong>Email:</strong> {escape(obj.email)}</p></section>"
