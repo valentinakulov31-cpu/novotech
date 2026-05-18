@@ -223,7 +223,6 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
     queryset = queryset.select_related("group", "brand").prefetch_related(
         "media_files",
         "gallery_items",
-        "documents",
         "certificates",
         "characteristics__characteristic",
     )
@@ -385,16 +384,6 @@ def serialize_product_card(product: Product, city=None) -> dict:
         "seo": build_product_seo(product, city=city),
         "media_list": media_list,
         "gallery": gallery,
-        "documents_list": [
-            {
-                "id": item.id,
-                "title": item.title,
-                "url": item.url,
-                "mime_type": item.mime_type,
-                "sort_order": item.sort_order,
-            }
-            for item in product.documents.all()
-        ],
         "certificates_list": [
             {
                 "id": item.id,

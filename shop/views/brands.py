@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from django.conf import settings
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from shop.seo import build_group_seo, build_product_seo, resolve_city
@@ -37,7 +38,7 @@ class BrandListView(ListAPIView):
         queryset = Brand.objects.all()
         name = self.request.query_params.get('name')
         if name:
-            queryset = queryset.filter(name__icontains=name)
+            queryset = queryset.filter(Q(name__icontains=name) | Q(slug__icontains=name) | Q(search_synonyms__contains=[name]))
         return queryset
 
 

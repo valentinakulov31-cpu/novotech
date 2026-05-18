@@ -38,7 +38,6 @@ from shop.models import (
     MediaLibrary,
     Product,
     ProductCertificate,
-    ProductDocument,
     ProductGalleryItem,
     ProductCharacteristic,
     ProductMedia,
@@ -412,9 +411,10 @@ def build_admin_change_url(instance) -> str | None:
         return None
 
 
-def collect_media_library_assets(search_query: str = "") -> list[dict]:
+def collect_media_library_assets(search_query: str = "", usage_filter: str = "") -> list[dict]:
     assets: dict[str, dict] = {}
     query = str(search_query or "").strip().lower()
+    usage_filter = str(usage_filter or "").strip()
 
     def register_asset(*, url, storage_path=None, title=None, source_label, owner_label, owner_admin_url=None, mime_type=None, size_bytes=None, kind=None):
         asset_key = build_media_asset_key(url=url, storage_path=storage_path)
@@ -425,6 +425,8 @@ def collect_media_library_assets(search_query: str = "") -> list[dict]:
         detected_kind = kind or infer_file_kind(detected_mime_type)
         title = title or Path(urlparse(str(url or "")).path).name or owner_label
         search_blob = " ".join(filter(None, [title, source_label, owner_label, url, resolved_storage_path, detected_mime_type])).lower()
+        if usage_filter and source_label != usage_filter:
+            return
         if query and query not in search_blob:
             return
 
@@ -536,19 +538,6 @@ def collect_media_library_assets(search_query: str = "") -> list[dict]:
             title=item.title or item.product.name,
         )
 
-    for document in ProductDocument.objects.select_related("product").order_by("product__name", "sort_order", "id"):
-        register_asset(
-            url=document.url,
-            storage_path=document.storage_path,
-            source_label="Product document",
-            owner_label=f"{document.product.name} ({document.product.sku})",
-            owner_admin_url=build_admin_change_url(document.product),
-            mime_type=document.mime_type,
-            size_bytes=document.size_bytes,
-            kind="document",
-            title=document.title,
-        )
-
     for certificate in ProductCertificate.objects.select_related("product").order_by("product__name", "sort_order", "id"):
         register_asset(
             url=certificate.url,
@@ -644,7 +633,6 @@ def delete_media_asset(asset_url: str | None, asset_storage_path: str | None) ->
     for model, label in (
         (ProductMedia, "product_media"),
         (ProductGalleryItem, "product_gallery"),
-        (ProductDocument, "product_documents"),
         (ProductCertificate, "product_certificates"),
         (NewsAttachment, "news_attachments"),
         (Sert, "serts"),
@@ -1085,7 +1073,6 @@ def import_products_from_workbook(workbook_file):
         "product_characteristics_upserted": 0,
         "media_items_imported": 0,
         "gallery_items_imported": 0,
-        "documents_imported": 0,
         "certificates_imported": 0,
         "rows_skipped": 0,
     }
@@ -1147,18 +1134,6 @@ def import_products_from_workbook(workbook_file):
                     row_number,
                 )
 
-            if "document_urls" in payload:
-                counters["documents_imported"] += sync_imported_titled_files(
-                    ProductDocument,
-                    product,
-                    split_media_urls(payload.get("document_urls")) or [],
-                    split_title_values(payload.get("document_titles")),
-                    "product_documents",
-                    warnings,
-                    row_number,
-                    "document",
-                )
-
             if "certificate_urls" in payload:
                 counters["certificates_imported"] += sync_imported_titled_files(
                     ProductCertificate,
@@ -1205,7 +1180,6 @@ def build_product_export_rows(products_queryset):
             "characteristics__characteristic",
             "media_files",
             "gallery_items",
-            "documents",
             "certificates",
         )
     )
@@ -1239,8 +1213,6 @@ def build_product_export_rows(products_queryset):
         "media_urls",
         "gallery_urls",
         "gallery_titles",
-        "document_urls",
-        "document_titles",
         "certificate_urls",
         "certificate_titles",
         *char_headers,
@@ -1274,8 +1246,6 @@ def build_product_export_rows(products_queryset):
             ",".join(product_media_urls or (product.media or [])),
             ",".join(item.url for item in product.gallery_items.all()),
             ",".join(item.title or "" for item in product.gallery_items.all()),
-            ",".join(item.url for item in product.documents.all()),
-            ",".join(item.title or "" for item in product.documents.all()),
             ",".join(item.url for item in product.certificates.all()),
             ",".join(item.title or "" for item in product.certificates.all()),
             *[
@@ -1460,9 +1430,36 @@ class ProductExportForm(forms.Form):
     )
 
 
+class SynonymListField(forms.JSONField):
+    widget = forms.Textarea
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("required", False)
+        kwargs.setdefault("help_text", "One synonym per line. The value is stored as a JSON list.")
+        super().__init__(*args, **kwargs)
+
+    def prepare_value(self, value):
+        if isinstance(value, list):
+            return "\n".join(str(item) for item in value if str(item).strip())
+        return super().prepare_value(value)
+
+    def to_python(self, value):
+        if value in self.empty_values:
+            return []
+        if isinstance(value, str) and not value.lstrip().startswith("["):
+            return [line.strip() for line in value.splitlines() if line.strip()]
+        parsed = super().to_python(value)
+        if parsed in self.empty_values:
+            return []
+        if not isinstance(parsed, list):
+            raise ValidationError("Enter a list of synonyms.")
+        return [str(item).strip() for item in parsed if str(item).strip()]
+
+
 class BrandAdminForm(AdminMediaFormMixin):
     media_field_name = "media"
     upload_folder_name = "brands"
+    search_synonyms = SynonymListField(label="Search synonyms", required=False)
 
     class Meta:
         model = Brand
@@ -1472,6 +1469,7 @@ class BrandAdminForm(AdminMediaFormMixin):
 class GroupAdminForm(AdminMediaFormMixin):
     media_field_name = "media"
     upload_folder_name = "groups"
+    search_synonyms = SynonymListField(label="Search synonyms", required=False)
 
     class Meta:
         model = Group
@@ -1509,6 +1507,9 @@ class ProductAdminForm(HtmlTableSanitizerMixin, AdminMediaFormMixin):
             attrs={"cols": 120, "rows": 22},
             mce_attrs={"height": 460},
         )
+        for field_name in ("seo_title", "seo_h1", "seo_description", "seo_keywords", "seo_canonical_url", "seo_robots"):
+            self.fields[field_name].required = False
+            self.fields[field_name].help_text = "Leave empty to let the API generate this SEO value automatically."
 
 
 class NewsAdminForm(HtmlTableSanitizerMixin, AdminMediaFormMixin):
@@ -1548,7 +1549,7 @@ class HtmlContentAdminForm(HtmlTableSanitizerMixin, forms.ModelForm):
 
 
 class OrderEmailSettingsAdminForm(HtmlTableSanitizerMixin, forms.ModelForm):
-    html_field_names = ("intro_html", "footer_html")
+    html_field_names = ("intro_html", "body_html", "footer_html")
 
     class Meta:
         model = OrderEmailSettings
@@ -1559,6 +1560,14 @@ class OrderEmailSettingsAdminForm(HtmlTableSanitizerMixin, forms.ModelForm):
         self.fields["intro_html"].widget = TinyMCE(
             attrs={"cols": 120, "rows": 16},
             mce_attrs={"height": 340},
+        )
+        self.fields["body_html"].widget = TinyMCE(
+            attrs={"cols": 120, "rows": 18},
+            mce_attrs={"height": 380},
+        )
+        self.fields["body_html"].help_text = (
+            "Placeholders: {{order_id}}, {{name}}, {{phone}}, {{email}}, {{address}}, "
+            "{{comment}}, {{total_items}}, {{items_table}}, {{items_text}}."
         )
         self.fields["footer_html"].widget = TinyMCE(
             attrs={"cols": 120, "rows": 14},
@@ -1611,39 +1620,6 @@ class ProductMediaAdminForm(forms.ModelForm):
             instance.mime_type = uploaded["mime_type"]
             instance.media_kind = infer_file_kind(uploaded["mime_type"])
             instance.size_bytes = uploaded["size_bytes"]
-        if commit:
-            instance.save()
-            self.save_m2m()
-        return instance
-
-
-class ProductDocumentAdminForm(forms.ModelForm):
-    document_upload = forms.FileField(required=False, label="Upload document")
-
-    class Meta:
-        model = ProductDocument
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        mark_generated_file_fields_optional(self)
-
-    def clean(self):
-        cleaned_data = super().clean()
-        validate_new_file_upload(self, "document_upload")
-        return cleaned_data
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        upload = self.cleaned_data.get("document_upload")
-        if upload:
-            uploaded = save_admin_upload(upload, "product_documents")
-            instance.storage_path = uploaded["storage_path"]
-            instance.url = uploaded["url"]
-            instance.mime_type = uploaded["mime_type"]
-            instance.size_bytes = uploaded["size_bytes"]
-            if not instance.title:
-                instance.title = upload.name
         if commit:
             instance.save()
             self.save_m2m()
@@ -1715,6 +1691,23 @@ class ProductGalleryItemAdminForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+
+class ProductCharacteristicAdminForm(forms.ModelForm):
+    class Meta:
+        model = ProductCharacteristic
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        product = self.initial.get("product") or getattr(self.instance, "product", None)
+        product_id = getattr(product, "pk", product)
+        if not product_id and self.data:
+            product_id = self.data.get("product")
+        if product_id:
+            selected_product = Product.objects.filter(pk=product_id).first()
+            if selected_product and selected_product.group_id:
+                self.fields["characteristic"].queryset = Characteristic.objects.filter(group=selected_product.group).order_by("name", "id")
 
 
 class NewsAttachmentAdminForm(forms.ModelForm):
@@ -1813,28 +1806,6 @@ class ProductMediaInline(admin.TabularInline):
         return format_html('<a href="{0}" target="_blank">open</a><br><img src="{0}" style="max-height:100px;max-width:140px;" />', obj.url)
 
 
-class ProductDocumentInline(admin.TabularInline):
-    model = ProductDocument
-    form = ProductDocumentAdminForm
-    extra = 1
-    fields = (
-        "document_upload",
-        "title",
-        "document_link",
-        "mime_type",
-        "size_bytes",
-        "sort_order",
-    )
-    readonly_fields = ("document_link", "mime_type", "size_bytes")
-    ordering = ("sort_order", "id")
-
-    @admin.display(description="Document")
-    def document_link(self, obj):
-        if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
-
-
 class ProductCertificateInline(admin.TabularInline):
     model = ProductCertificate
     form = ProductCertificateAdminForm
@@ -1904,10 +1875,10 @@ class NewsAttachmentInline(admin.TabularInline):
 
 class PublicOrderItemInline(admin.TabularInline):
     model = PublicOrderItem
-    extra = 0
+    extra = 1
     fields = ("product", "qty")
-    readonly_fields = ("product", "qty")
-    can_delete = False
+    autocomplete_fields = ("product",)
+    can_delete = True
 
 
 class MediaPreviewAdminMixin:
@@ -1925,7 +1896,7 @@ class BrandAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
     list_display = ("id", "name", "slug", "media_preview")
     search_fields = ("name", "slug")
     readonly_fields = ("media_preview",)
-    fields = ("name", "slug", "media", "media_upload", "media_preview")
+    fields = ("name", "slug", "search_synonyms", "media", "media_upload", "media_preview")
 
 
 @admin.register(City)
@@ -1948,6 +1919,7 @@ class GroupAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
         "parent",
         "name",
         "slug",
+        "search_synonyms",
         "description",
         "media",
         "media_upload",
@@ -1965,9 +1937,10 @@ class GroupAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
 class ProductAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
     form = ProductAdminForm
     change_list_template = "admin/shop/product/change_list.html"
-    inlines = [ProductMediaInline, ProductGalleryItemInline, ProductDocumentInline, ProductCertificateInline]
+    inlines = [ProductMediaInline, ProductGalleryItemInline, ProductCertificateInline]
     list_display = ("id", "name", "sku", "brand", "group", "price", "available", "media_preview")
     search_fields = ("name", "sku", "slug", "search_tsv", "seo_title", "seo_h1")
+    autocomplete_fields = ("brand", "group")
     list_filter = ("available", "brand", "group")
     readonly_fields = ("media_preview",)
     fields = (
@@ -2032,7 +2005,6 @@ class ProductAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
                         f"product characteristics upserted: {counters['product_characteristics_upserted']}, "
                         f"media imported: {counters['media_items_imported']}, "
                         f"gallery imported: {counters['gallery_items_imported']}, "
-                        f"documents imported: {counters['documents_imported']}, "
                         f"certificates imported: {counters['certificates_imported']}, "
                         f"rows skipped: {counters['rows_skipped']}."
                     ),
@@ -2295,6 +2267,15 @@ class PublicOrderAdmin(admin.ModelAdmin):
     search_fields = ("name", "phone", "email", "address", "comment", "items__product__name", "items__product__sku")
     readonly_fields = ("created_at", "total_items")
     fields = ("name", "phone", "email", "address", "comment", "status", "total_items", "created_at")
+    autocomplete_fields = ()
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        order = form.instance
+        total_items = sum(order.items.values_list("qty", flat=True))
+        if order.total_items != total_items:
+            order.total_items = total_items
+            order.save(update_fields=["total_items"])
 
 
 @admin.register(OrderEmailRecipient)
@@ -2319,6 +2300,7 @@ class OrderEmailSettingsAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
         "subject",
         "from_email",
         "intro_html",
+        "body_html",
         "footer_html",
         "status",
         "preview_link",
@@ -2343,6 +2325,7 @@ class OrderEmailSettingsAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
         return (
             f"<section><h1>{escape(obj.subject)}</h1>"
             f"{obj.intro_html or ''}"
+            f"{obj.body_html or ''}"
             f"{sample_order_block}"
             f"{obj.footer_html or ''}</section>"
         )
@@ -2374,7 +2357,20 @@ class MediaLibraryAdmin(admin.ModelAdmin):
         if not self.has_view_or_change_permission(request):
             raise PermissionDenied("You do not have permission to view the media library.")
         search_query = request.GET.get("q", "").strip()
-        assets = collect_media_library_assets(search_query=search_query)
+        usage_filter = request.GET.get("usage", "").strip()
+        usage_options = [
+            "Brand image",
+            "Group image",
+            "Slider image",
+            "Product media field",
+            "News media field",
+            "Product media",
+            "Product gallery",
+            "Product certificate",
+            "News attachment",
+            "Sert file",
+        ]
+        assets = collect_media_library_assets(search_query=search_query, usage_filter=usage_filter)
         context = {
             **self.admin_site.each_context(request),
             "opts": self.model._meta,
@@ -2382,6 +2378,8 @@ class MediaLibraryAdmin(admin.ModelAdmin):
             "subtitle": "All uploaded and referenced media in one place.",
             "media_assets": assets,
             "search_query": search_query,
+            "usage_filter": usage_filter,
+            "usage_options": usage_options,
             "asset_count": len(assets),
             **(extra_context or {}),
         }
@@ -2397,11 +2395,17 @@ class MediaLibraryAdmin(admin.ModelAdmin):
         asset_storage_path = (request.POST.get("asset_storage_path") or "").strip() or None
         asset_title = (request.POST.get("asset_title") or "").strip() or "media asset"
         search_query = (request.POST.get("q") or "").strip()
+        usage_filter = (request.POST.get("usage") or "").strip()
         if not asset_url and not asset_storage_path:
             self.message_user(request, "Media asset identifier is missing.", level=messages.ERROR)
             redirect_url = reverse("admin:shop_medialibrary_changelist")
+            query_parts = []
             if search_query:
-                redirect_url = f"{redirect_url}?q={search_query}"
+                query_parts.append(f"q={search_query}")
+            if usage_filter:
+                query_parts.append(f"usage={usage_filter}")
+            if query_parts:
+                redirect_url = f"{redirect_url}?{'&'.join(query_parts)}"
             return HttpResponseRedirect(redirect_url)
 
         with transaction.atomic():
@@ -2420,8 +2424,13 @@ class MediaLibraryAdmin(admin.ModelAdmin):
             level=messages.SUCCESS,
         )
         redirect_url = reverse("admin:shop_medialibrary_changelist")
+        query_parts = []
         if search_query:
-            redirect_url = f"{redirect_url}?q={search_query}"
+            query_parts.append(f"q={search_query}")
+        if usage_filter:
+            query_parts.append(f"usage={usage_filter}")
+        if query_parts:
+            redirect_url = f"{redirect_url}?{'&'.join(query_parts)}"
         return HttpResponseRedirect(redirect_url)
 
 
@@ -2463,31 +2472,6 @@ class ProductMediaAdmin(admin.ModelAdmin):
         super().delete_model(request, obj)
         ensure_single_primary(product)
         sync_product_media(product)
-
-
-@admin.register(ProductDocument)
-class ProductDocumentAdmin(admin.ModelAdmin):
-    form = ProductDocumentAdminForm
-    list_display = ("id", "product", "title", "mime_type", "size_bytes", "sort_order")
-    search_fields = ("product__name", "title", "url", "storage_path")
-    readonly_fields = ("storage_path", "url", "mime_type", "size_bytes", "document_link")
-    fields = (
-        "product",
-        "document_upload",
-        "title",
-        "document_link",
-        "storage_path",
-        "url",
-        "mime_type",
-        "size_bytes",
-        "sort_order",
-    )
-
-    @admin.display(description="Document")
-    def document_link(self, obj):
-        if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
 
 
 @admin.register(ProductGalleryItem)
@@ -2619,8 +2603,11 @@ class CharacteristicAdmin(admin.ModelAdmin):
 
 @admin.register(ProductCharacteristic)
 class ProductCharacteristicAdmin(admin.ModelAdmin):
+    form = ProductCharacteristicAdminForm
     list_display = ("id", "product", "characteristic", "value", "created_at")
     search_fields = ("product__name", "characteristic__name", "value")
+    list_filter = ("characteristic__group", "characteristic")
+    autocomplete_fields = ("product", "characteristic")
 
 
 admin.site.site_header = "Novotech admin"
@@ -2647,7 +2634,6 @@ ADMIN_SECTION_ORDER = [
             "shop.MediaLibrary",
             "shop.ProductMedia",
             "shop.ProductGalleryItem",
-            "shop.ProductDocument",
             "shop.ProductCertificate",
             "shop.Sert",
             "shop.NewsAttachment",
@@ -2694,7 +2680,6 @@ ADMIN_MODEL_NAMES = {
     "shop.MediaLibrary": "Библиотека медиа",
     "shop.ProductMedia": "Превью товаров",
     "shop.ProductGalleryItem": "Галерея товаров",
-    "shop.ProductDocument": "Документы товаров",
     "shop.ProductCertificate": "Сертификаты товаров",
     "shop.Sert": "Общие сертификаты",
     "shop.NewsAttachment": "Файлы новостей",

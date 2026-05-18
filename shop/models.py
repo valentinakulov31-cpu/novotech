@@ -12,6 +12,15 @@ PUBLISH_STATUS_CHOICES = [
     (PUBLISH_STATUS_PUBLISHED, "Published"),
 ]
 
+CHARACTERISTIC_TYPE_TEXT = "text"
+CHARACTERISTIC_TYPE_NUMBER = "number"
+CHARACTERISTIC_TYPE_BOOLEAN = "boolean"
+CHARACTERISTIC_TYPE_CHOICES = [
+    (CHARACTERISTIC_TYPE_TEXT, "Text"),
+    (CHARACTERISTIC_TYPE_NUMBER, "Number"),
+    (CHARACTERISTIC_TYPE_BOOLEAN, "Boolean"),
+]
+
 
 CYRILLIC_TO_LATIN = {
     "а": "a",
@@ -76,11 +85,43 @@ def unique_product_slug(instance, base_value: str) -> str:
     return slug
 
 
+def next_sort_order(model_class, filters=None) -> int:
+    queryset = model_class.objects.all()
+    if filters:
+        queryset = queryset.filter(**filters)
+    return queryset.count() + 1
+
+
+def assign_sort_order(instance, filters=None):
+    if not instance.pk and not instance.sort_order:
+        instance.sort_order = next_sort_order(instance.__class__, filters=filters)
+
+
+def normalize_synonyms(value):
+    if not value:
+        return []
+    if isinstance(value, str):
+        value = [value]
+    result = []
+    seen = set()
+    for item in value:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        lowered = text.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        result.append(text)
+    return result
+
+
 class Brand(models.Model):
     """Product brands."""
 
     name = models.CharField(max_length=255)
     slug = models.CharField(max_length=255, unique=True, blank=True, null=True)
+    search_synonyms = models.JSONField(default=list, blank=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
 
     class Meta:
@@ -88,6 +129,14 @@ class Brand(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        synonyms = normalize_synonyms(self.search_synonyms)
+        transliterated = transliterate_slug(self.name).replace("-", " ")
+        if transliterated and transliterated.lower() != str(self.name or "").strip().lower():
+            synonyms = normalize_synonyms([*synonyms, transliterated, *transliterated.split()])
+        self.search_synonyms = synonyms
+        super().save(*args, **kwargs)
 
 
 class City(models.Model):
@@ -108,6 +157,14 @@ class City(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self.search_synonyms = normalize_synonyms(self.search_synonyms)
+        super().save(*args, **kwargs)
+
+    def save(self, *args, **kwargs):
+        assign_sort_order(self)
+        super().save(*args, **kwargs)
+
 
 class Group(models.Model):
     """Product groups/categories."""
@@ -121,6 +178,7 @@ class Group(models.Model):
     )
     name = models.CharField(max_length=255)
     slug = models.CharField(max_length=255, unique=True)
+    search_synonyms = models.JSONField(default=list, blank=True)
     description = models.TextField(null=True, blank=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
     seo_title = models.CharField(max_length=255, null=True, blank=True)
@@ -195,6 +253,10 @@ class ProductMedia(models.Model):
     def __str__(self):
         return f"Media for {self.product.name}"
 
+    def save(self, *args, **kwargs):
+        assign_sort_order(self, filters={"product": self.product})
+        super().save(*args, **kwargs)
+
 
 class MediaLibrary(ProductMedia):
     class Meta:
@@ -222,24 +284,9 @@ class ProductGalleryItem(models.Model):
     def __str__(self):
         return f"Gallery item for {self.product.name}"
 
-
-class ProductDocument(models.Model):
-    """Documents attached to a product."""
-
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="documents")
-    title = models.CharField(max_length=255)
-    storage_path = models.CharField(max_length=1024)
-    url = models.CharField(max_length=1024)
-    mime_type = models.CharField(max_length=255)
-    size_bytes = models.IntegerField()
-    sort_order = models.IntegerField(default=0)
-
-    class Meta:
-        db_table = "product_documents"
-        ordering = ["sort_order", "id"]
-
-    def __str__(self):
-        return f"{self.title} for {self.product.name}"
+    def save(self, *args, **kwargs):
+        assign_sort_order(self, filters={"product": self.product})
+        super().save(*args, **kwargs)
 
 
 class ProductCertificate(models.Model):
@@ -260,6 +307,10 @@ class ProductCertificate(models.Model):
     def __str__(self):
         return f"{self.title} for {self.product.name}"
 
+    def save(self, *args, **kwargs):
+        assign_sort_order(self, filters={"product": self.product})
+        super().save(*args, **kwargs)
+
 
 class Characteristic(models.Model):
     """Characteristic definitions (EAV)."""
@@ -267,7 +318,7 @@ class Characteristic(models.Model):
     group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="characteristics")
     name = models.CharField(max_length=255)
     slug = models.CharField(max_length=255, default="")
-    data_type = models.CharField(max_length=50, default="text")
+    data_type = models.CharField(max_length=50, choices=CHARACTERISTIC_TYPE_CHOICES, default=CHARACTERISTIC_TYPE_TEXT)
     unit = models.CharField(max_length=50, null=True, blank=True)
     is_filterable = models.BooleanField(default=True)
     is_searchable = models.BooleanField(default=False)
@@ -348,6 +399,10 @@ class NewsAttachment(models.Model):
     def __str__(self):
         return f"{self.title} for {self.news.title}"
 
+    def save(self, *args, **kwargs):
+        assign_sort_order(self, filters={"news": self.news})
+        super().save(*args, **kwargs)
+
 
 class Sert(models.Model):
     """Global certificates/documents."""
@@ -376,6 +431,10 @@ class Sert(models.Model):
     def __str__(self):
         return self.title
 
+    def save(self, *args, **kwargs):
+        assign_sort_order(self)
+        super().save(*args, **kwargs)
+
     @property
     def is_active(self):
         return self.status == PUBLISH_STATUS_PUBLISHED
@@ -387,7 +446,7 @@ class Slider(models.Model):
     image = models.CharField(max_length=1024)
     title = models.CharField(max_length=255)
     text = models.TextField(blank=True, null=True)
-    slug = models.CharField(max_length=255, unique=True)
+    slug = models.CharField(max_length=255, unique=True, blank=True, null=True)
     sort_order = models.IntegerField(default=0)
     status = models.CharField(max_length=20, choices=PUBLISH_STATUS_CHOICES, default=PUBLISH_STATUS_DRAFT)
     created_at = models.DateTimeField(default=timezone.now)
@@ -406,6 +465,11 @@ class Slider(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        self.slug = (self.slug or "").strip() or None
+        assign_sort_order(self)
+        super().save(*args, **kwargs)
 
     @property
     def is_active(self):
@@ -522,6 +586,10 @@ class Agent(models.Model):
     def __str__(self):
         return self.full_name
 
+    def save(self, *args, **kwargs):
+        assign_sort_order(self)
+        super().save(*args, **kwargs)
+
     @property
     def is_active(self):
         return self.status == PUBLISH_STATUS_PUBLISHED
@@ -599,6 +667,7 @@ class OrderEmailSettings(models.Model):
     title = models.CharField(max_length=255, default="Order email settings")
     subject = models.CharField(max_length=255, default="Новый заказ с сайта")
     intro_html = models.TextField(blank=True, null=True)
+    body_html = models.TextField(blank=True, null=True)
     footer_html = models.TextField(blank=True, null=True)
     from_email = models.EmailField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=PUBLISH_STATUS_CHOICES, default=PUBLISH_STATUS_DRAFT)

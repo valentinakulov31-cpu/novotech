@@ -22,7 +22,13 @@
           style="min-width: 340px; padding: 0.5rem 0.75rem;"
         />
         <button type="submit" class="button">Search</button>
-        {% if search_query %}
+        <select name="usage" style="padding: 0.5rem 0.75rem;">
+          <option value="">All usages</option>
+          {% for option in usage_options %}
+            <option value="{{ option }}" {% if usage_filter == option %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+        {% if search_query or usage_filter %}
           <a href="{% url 'admin:shop_medialibrary_changelist' %}" class="button">Reset</a>
         {% endif %}
         <span>{{ asset_count }} asset{{ asset_count|pluralize }}</span>
@@ -88,6 +94,7 @@
                   <input type="hidden" name="asset_storage_path" value="{{ asset.storage_path|default:'' }}" />
                   <input type="hidden" name="asset_title" value="{{ asset.title }}" />
                   <input type="hidden" name="q" value="{{ search_query }}" />
+                  <input type="hidden" name="usage" value="{{ usage_filter }}" />
                   <button type="submit" class="deletelink" style="background: none; border: none; padding: 0; cursor: pointer;">Delete everywhere</button>
                 </form>
               </td>

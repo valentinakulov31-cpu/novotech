@@ -15,7 +15,6 @@ from shop.views.attributes import (
     CharacteristicListView, ProductAttributesView, ProductAttributeCreateView
 )
 from shop.views.media import ProductMediaListView, ProductMediaUploadView
-from shop.views.documents import ProductDocumentListView, ProductDocumentUploadView
 from shop.views.product_certificates import ProductCertificateListView, ProductCertificateUploadView
 from shop.views.news import NewsListView, NewsCreateView
 from shop.views.serts import SertListView
@@ -61,8 +60,6 @@ urlpatterns = [
     # Media
     path('products/<int:product_id>/media', ProductMediaListView.as_view(), name='product-media-list'),
     path('products/<int:product_id>/media', ProductMediaUploadView.as_view(), name='product-media-upload'),
-    path('products/<int:product_id>/documents', ProductDocumentListView.as_view(), name='product-document-list'),
-    path('products/<int:product_id>/documents/upload', ProductDocumentUploadView.as_view(), name='product-document-upload'),
     path('products/<int:product_id>/certificates', ProductCertificateListView.as_view(), name='product-certificate-list'),
     path('products/<int:product_id>/certificates/upload', ProductCertificateUploadView.as_view(), name='product-certificate-upload'),
     

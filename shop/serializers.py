@@ -5,7 +5,7 @@ from rest_framework import serializers
 from shop.seo import build_group_seo, build_product_seo, resolve_city
 from shop.models import (
     Brand, City, Group, Product, ProductMedia,
-    ProductGalleryItem, ProductDocument, ProductCertificate, Characteristic, ProductCharacteristic,
+    ProductGalleryItem, ProductCertificate, Characteristic, ProductCharacteristic,
     News, NewsAttachment, Sert, Slider, Inquiry, HtmlContent, ContactInfo, Agent, PublicOrder,
     PublicOrderItem, OrderEmailRecipient, OrderEmailSettings, PUBLISH_STATUS_CHOICES,
     PUBLISH_STATUS_DRAFT, PUBLISH_STATUS_PUBLISHED,
@@ -17,13 +17,14 @@ from shop.models import (
 class BrandCreateSerializer(serializers.Serializer):
     name = serializers.CharField()
     slug = serializers.CharField()
+    search_synonyms = serializers.ListField(child=serializers.CharField(), required=False)
     media = serializers.CharField(required=False, allow_null=True)
 
 
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
-        fields = ['id', 'name', 'slug', 'media']
+        fields = ['id', 'name', 'slug', 'search_synonyms', 'media']
 
 
 class CitySerializer(serializers.ModelSerializer):
@@ -38,6 +39,7 @@ class GroupCreateSerializer(serializers.Serializer):
     parent_id = serializers.IntegerField(required=False, allow_null=True)
     name = serializers.CharField()
     slug = serializers.CharField()
+    search_synonyms = serializers.ListField(child=serializers.CharField(), required=False)
     description = serializers.CharField(required=False, allow_null=True)
     media = serializers.CharField(required=False, allow_null=True)
     seo_title = serializers.CharField(required=False, allow_null=True, allow_blank=True)
@@ -54,7 +56,7 @@ class GroupSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Group
-        fields = ['id', 'parent_id', 'name', 'slug', 'description', 'media', 'seo']
+        fields = ['id', 'parent_id', 'name', 'slug', 'search_synonyms', 'description', 'media', 'seo']
 
     def _resolved_city(self):
         if hasattr(self, "_cached_city"):
@@ -96,7 +98,6 @@ class ProductSerializer(serializers.ModelSerializer):
     brand_id = serializers.IntegerField(source='brand.id', allow_null=True, read_only=True)
     gallery = serializers.SerializerMethodField()
     media_list = serializers.SerializerMethodField()
-    documents_list = serializers.SerializerMethodField()
     certificates_list = serializers.SerializerMethodField()
     seo = serializers.SerializerMethodField()
     
@@ -104,7 +105,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = ['id', 'sku', 'slug', 'name', 'price', 'currency', 'description', 'assortment_html', 'characteristics_html',
                   'group_id', 'brand_id', 'media', 'available', 'seo', 'gallery',
-                  'media_list', 'documents_list', 'certificates_list']
+                  'media_list', 'certificates_list']
 
     def _serialize_media(self, obj):
         items = obj.media_files.all()
@@ -116,10 +117,6 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_gallery(self, obj):
         items = obj.gallery_items.all()
         return ProductGalleryItemSerializer(items, many=True).data
-
-    def get_documents_list(self, obj):
-        items = obj.documents.all()
-        return ProductDocumentSerializer(items, many=True).data
 
     def get_certificates_list(self, obj):
         items = obj.certificates.all()
@@ -150,12 +147,6 @@ class ProductGalleryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductGalleryItem
         fields = ['id', 'product_id', 'title', 'url', 'mime_type', 'file_kind', 'size_bytes', 'sort_order']
-
-
-class ProductDocumentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductDocument
-        fields = ['id', 'product_id', 'title', 'url', 'mime_type', 'size_bytes', 'sort_order']
 
 
 class ProductCertificateSerializer(serializers.ModelSerializer):
@@ -308,6 +299,7 @@ class OrderEmailSettingsSerializer(serializers.ModelSerializer):
             'title',
             'subject',
             'intro_html',
+            'body_html',
             'footer_html',
             'from_email',
             'is_active',

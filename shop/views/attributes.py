@@ -69,10 +69,15 @@ class ProductAttributeCreateView(APIView):
         product = get_object_or_404(Product, id=product_id)
         serializer = ProductCharacteristicCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        characteristic = get_object_or_404(
+            Characteristic,
+            id=serializer.validated_data['attribute_id'],
+            group=product.group,
+        )
         
         pc = ProductCharacteristic.objects.create(
             product=product,
-            characteristic_id=serializer.validated_data['attribute_id'],
+            characteristic=characteristic,
             value=serializer.validated_data.get('value_text')
         )
         

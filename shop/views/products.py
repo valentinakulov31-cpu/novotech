@@ -17,12 +17,11 @@ from shop.filtering import (
     serialize_product_card,
 )
 from shop.seo import build_product_seo, resolve_city
-from shop.models import Product, ProductMedia, ProductGalleryItem, ProductCharacteristic, ProductDocument, ProductCertificate
+from shop.models import Product, ProductMedia, ProductGalleryItem, ProductCharacteristic, ProductCertificate
 from shop.serializers import (
     ProductSerializer,
     ProductCreateSerializer,
     ProductGalleryItemSerializer,
-    ProductDocumentSerializer,
     ProductMediaSerializer,
     ProductCertificateSerializer,
 )
@@ -61,7 +60,7 @@ class ProductListView(ListAPIView):
     def get_queryset(self):
         payload = build_filter_payload_from_query_params(self.request.query_params)
         queryset = apply_catalog_filters(
-            Product.objects.select_related('group', 'brand').prefetch_related('media_files', 'gallery_items', 'documents', 'certificates'),
+            Product.objects.select_related('group', 'brand').prefetch_related('media_files', 'gallery_items', 'certificates'),
             payload,
         )
         if parse_bool(self.request.query_params.get('popular')) is True:
@@ -84,7 +83,7 @@ class ProductFilterView(APIView):
             city_slug=(payload.get("context") or {}).get("city_slug") or payload.get("city_slug"),
         )
         queryset = apply_catalog_filters(
-            Product.objects.select_related('group', 'brand').prefetch_related('media_files', 'gallery_items', 'documents', 'certificates'),
+            Product.objects.select_related('group', 'brand').prefetch_related('media_files', 'gallery_items', 'certificates'),
             payload,
         )
         products = [serialize_product_card(product, city=city) for product in queryset.order_by('name')]
@@ -154,10 +153,6 @@ class ProductDetailView(APIView):
             ProductGalleryItem.objects.filter(product=product).order_by('sort_order', 'id'),
             many=True,
         ).data
-        documents_list = ProductDocumentSerializer(
-            ProductDocument.objects.filter(product=product).order_by('sort_order', 'id'),
-            many=True,
-        ).data
         certificates_list = ProductCertificateSerializer(
             ProductCertificate.objects.filter(product=product).order_by('sort_order', 'id'),
             many=True,
@@ -194,7 +189,6 @@ class ProductDetailView(APIView):
             'seo': build_product_seo(product, city=city),
             'media_list': media_list,
             'gallery': gallery,
-            'documents_list': documents_list,
             'certificates_list': certificates_list,
             'attributes': attributes,
         })
