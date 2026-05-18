@@ -14,7 +14,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from shop.seo import build_group_seo, build_product_seo, resolve_city
-from shop.models import Brand, Product, Group
+from shop.models import Brand, Product, Group, transliterate_slug
 from shop.serializers import BrandSerializer, BrandCreateSerializer
 from shop.permissions import IsAdmin
 
@@ -38,7 +38,15 @@ class BrandListView(ListAPIView):
         queryset = Brand.objects.all()
         name = self.request.query_params.get('name')
         if name:
-            queryset = queryset.filter(Q(name__icontains=name) | Q(slug__icontains=name) | Q(search_synonyms__contains=[name]))
+            transliterated = transliterate_slug(name)
+            queryset = queryset.filter(
+                Q(name__icontains=name)
+                | Q(slug__icontains=name)
+                | Q(search_synonyms__contains=[name])
+                | Q(name__icontains=transliterated)
+                | Q(slug__icontains=transliterated)
+                | Q(search_synonyms__contains=[transliterated])
+            )
         return queryset
 
 

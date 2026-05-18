@@ -4,7 +4,7 @@ from django.contrib.postgres.search import TrigramSimilarity
 from django.db.models import Case, Count, F, FloatField, IntegerField, Max, Min, Q, Value, When, Window
 from django.db.models.functions import Cast, Coalesce, Greatest, RowNumber
 
-from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic
+from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic, transliterate_slug
 from shop.seo import build_product_seo, resolve_city
 
 
@@ -36,7 +36,23 @@ def parse_decimal(value):
 
 
 def tokenize_query(query):
-    return [token for token in str(query or "").split() if token.strip()]
+    tokens = []
+    seen = set()
+    for token in str(query or "").split():
+        token = token.strip()
+        if not token:
+            continue
+        variants = [token]
+        transliterated = transliterate_slug(token).replace("-", " ").strip()
+        if transliterated:
+            variants.extend(part for part in transliterated.split() if part)
+        for variant in variants:
+            key = variant.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            tokens.append(variant)
+    return tokens
 
 
 def any_field_matches(token, fields):
