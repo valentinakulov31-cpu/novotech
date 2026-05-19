@@ -3,7 +3,15 @@ from decimal import Decimal, InvalidOperation
 from django.db.models import Case, Count, FloatField, IntegerField, Max, Min, Q, Value, When
 from django.db.models.functions import Cast
 
-from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic, transliterate_slug
+from shop.models import (
+    Brand,
+    Characteristic,
+    Group,
+    Product,
+    ProductCharacteristic,
+    normalize_search_token,
+    transliterate_slug,
+)
 from shop.seo import build_product_seo, resolve_city
 
 
@@ -57,6 +65,9 @@ def tokenize_query_groups(query):
         transliterated = transliterate_slug(token).replace("-", " ").strip()
         if transliterated:
             variants.extend(part for part in transliterated.split() if part)
+        normalized_token = normalize_search_token(token)
+        if normalized_token:
+            variants.append(normalized_token)
         group = []
         seen = set()
         for variant in variants:
