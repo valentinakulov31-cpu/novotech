@@ -60,22 +60,22 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="brand",
             name="search_index",
-            field=models.TextField(blank=True, db_index=True, default=""),
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.AddField(
             model_name="characteristic",
             name="search_index",
-            field=models.TextField(blank=True, db_index=True, default=""),
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.AddField(
             model_name="group",
             name="search_index",
-            field=models.TextField(blank=True, db_index=True, default=""),
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.AddField(
             model_name="product",
             name="search_index",
-            field=models.TextField(blank=True, db_index=True, default=""),
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.RunPython(populate_search_indexes, migrations.RunPython.noop),
         migrations.RunSQL("CREATE EXTENSION IF NOT EXISTS pg_trgm;"),

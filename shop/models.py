@@ -159,7 +159,7 @@ class Brand(models.Model):
     name = models.CharField(max_length=255)
     slug = models.CharField(max_length=255, unique=True, blank=True, null=True)
     search_synonyms = models.JSONField(default=list, blank=True)
-    search_index = models.TextField(default="", blank=True, db_index=True)
+    search_index = models.TextField(default="", blank=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
 
     class Meta:
@@ -215,7 +215,7 @@ class Group(models.Model):
     name = models.CharField(max_length=255)
     slug = models.CharField(max_length=255, unique=True)
     search_synonyms = models.JSONField(default=list, blank=True)
-    search_index = models.TextField(default="", blank=True, db_index=True)
+    search_index = models.TextField(default="", blank=True)
     description = models.TextField(null=True, blank=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
     seo_title = models.CharField(max_length=255, null=True, blank=True)
@@ -254,7 +254,7 @@ class Product(models.Model):
     media = models.JSONField(null=True, blank=True)
     available = models.BooleanField(default=True)
     search_tsv = models.TextField("Search synonyms", null=True, blank=True)
-    search_index = models.TextField(default="", blank=True, db_index=True)
+    search_index = models.TextField(default="", blank=True)
     seo_title = models.CharField(max_length=255, null=True, blank=True)
     seo_h1 = models.CharField(max_length=255, null=True, blank=True)
     seo_description = models.TextField(null=True, blank=True)
@@ -389,7 +389,7 @@ class Characteristic(models.Model):
     slug = models.CharField(max_length=255, default="")
     data_type = models.CharField(max_length=50, choices=CHARACTERISTIC_TYPE_CHOICES, default=CHARACTERISTIC_TYPE_TEXT)
     unit = models.CharField(max_length=50, null=True, blank=True)
-    search_index = models.TextField(default="", blank=True, db_index=True)
+    search_index = models.TextField(default="", blank=True)
     is_filterable = models.BooleanField(default=True)
     is_searchable = models.BooleanField(default=False)
 
