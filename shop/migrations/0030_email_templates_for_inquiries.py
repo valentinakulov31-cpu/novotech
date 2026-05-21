@@ -49,9 +49,9 @@ class Migration(migrations.Migration):
                 max_length=20,
             ),
         ),
-        migrations.RunPython(seed_inquiry_template, migrations.RunPython.noop),
         migrations.RemoveField(
             model_name="orderemailsettings",
             name="from_email",
         ),
+        migrations.RunPython(seed_inquiry_template, migrations.RunPython.noop),
     ]
