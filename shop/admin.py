@@ -2329,26 +2329,6 @@ class OrderEmailSettingsAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
     def render_preview_html(self, obj):
         return build_notification_preview_html(obj.notification_type, obj)
 
-        sample_order_block = (
-            "<h2>New order #123</h2>"
-            "<ul>"
-            "<li><strong>Name:</strong> Иван</li>"
-            "<li><strong>Phone:</strong> +79990001122</li>"
-            "<li><strong>Email:</strong> ivan@example.com</li>"
-            "</ul>"
-            "<table border='1' cellpadding='6' cellspacing='0'>"
-            "<thead><tr><th>SKU</th><th>Product</th><th>Qty</th></tr></thead>"
-            "<tbody><tr><td>ER-0001</td><td>Sample product</td><td>2</td></tr></tbody>"
-            "</table>"
-        )
-        return (
-            f"<section><h1>{escape(obj.subject)}</h1>"
-            f"{obj.intro_html or ''}"
-            f"{obj.body_html or ''}"
-            f"{sample_order_block}"
-            f"{obj.footer_html or ''}</section>"
-        )
-
 
 @admin.register(MediaLibrary)
 class MediaLibraryAdmin(admin.ModelAdmin):
@@ -2710,7 +2690,7 @@ ADMIN_MODEL_NAMES = {
     "shop.City": "Города для SEO",
     "shop.Inquiry": "Заявки",
     "shop.PublicOrder": "Заказы",
-    "shop.OrderEmailSettings": "Шаблон письма о заказе",
+    "shop.OrderEmailSettings": "Шаблон письма",
     "shop.OrderEmailRecipient": "Получатели писем",
     "auth.User": "Пользователи",
     "auth.Group": "Группы прав",

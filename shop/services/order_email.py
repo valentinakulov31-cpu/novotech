@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import escape, strip_tags
@@ -11,6 +13,8 @@ from shop.models import (
     PUBLISH_STATUS_PUBLISHED,
     PublicOrder,
 )
+
+PLACEHOLDER_RE = re.compile(r"{{\s*([a-zA-Z0-9_]+)\s*}}")
 
 
 def get_active_email_settings(notification_type: str):
@@ -65,6 +69,8 @@ def _order_items_text(order: PublicOrder) -> str:
 def build_order_email_context(order: PublicOrder) -> dict:
     return {
         "order_id": order.id,
+        "notification_id": order.id,
+        "notification_kind": "заказ",
         "name": order.name or "",
         "phone": order.phone or "",
         "email": order.email or "",
@@ -79,6 +85,8 @@ def build_order_email_context(order: PublicOrder) -> dict:
 def build_inquiry_email_context(inquiry: Inquiry) -> dict:
     return {
         "inquiry_id": inquiry.id,
+        "notification_id": inquiry.id,
+        "notification_kind": "заявка",
         "name": inquiry.name or "",
         "phone": inquiry.phone or "",
         "email": inquiry.email or "",
@@ -125,13 +133,16 @@ def _sample_inquiry_context() -> dict:
 
 
 def render_email_template(template: str | None, context: dict, *, escape_values: bool = True) -> str:
-    rendered = str(template or "")
-    for key, value in context.items():
-        replacement = str(value)
+    def replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in context:
+            return match.group(0)
+        replacement = str(context[key])
         if escape_values and key != "items_table":
             replacement = escape(replacement)
-        rendered = rendered.replace("{{" + key + "}}", replacement)
-    return rendered
+        return replacement
+
+    return PLACEHOLDER_RE.sub(replace, str(template or ""))
 
 
 def _build_order_default_body(context: dict) -> str:
@@ -161,8 +172,9 @@ def _build_order_default_body(context: dict) -> str:
         "<table role='presentation' width='100%' cellspacing='0' cellpadding='0'><tr><td "
         "style='padding:18px 22px; background:#fbf9f4; border:1px solid #eee5d8; border-radius:18px;'>"
         f"<div style='font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#8f867b; margin-bottom:8px;'>Заказ #{escape(context['order_id'])}</div>"
-        "<div style='font-size:28px; line-height:1.2; font-weight:700; color:#171717; margin-bottom:6px;'>Новый заказ с сайта</div>"
-        f"<div style='font-size:15px; line-height:1.6; color:#5f584f;'>Поступил новый заказ на {escape(context['total_items'])} поз. Проверьте состав и свяжитесь с клиентом.</div>"
+        "<div style='font-size:30px; line-height:1.15; font-weight:800; color:#171717; margin-bottom:8px;'>Новый заказ с сайта</div>"
+        f"<div style='font-size:16px; line-height:1.65; color:#5f584f;'>Заказ оформил <strong style='color:#171717;'>{escape(context['name'] or 'клиент')}</strong>. "
+        f"Внутри {escape(context['total_items'])} позиций. Ниже вся информация для быстрого контакта и обработки.</div>"
         "</td></tr></table>"
         "</td></tr>"
         "<tr><td style='padding:0 0 18px;'>"
@@ -177,7 +189,7 @@ def _build_order_default_body(context: dict) -> str:
         "style='padding:18px 22px; background:#ffffff; border:1px solid #eee5d8; border-radius:18px;'>"
         "<div style='font-size:18px; font-weight:700; color:#171717; margin-bottom:14px;'>Состав заказа</div>"
         f"{context['items_table']}"
-        f"<div style='margin-top:16px; display:inline-block; padding:10px 14px; background:#ffd400; color:#171717; font-size:14px; font-weight:700; border-radius:999px;'>Всего позиций: {escape(context['total_items'])}</div>"
+        f"<div style='margin-top:16px; display:inline-block; padding:10px 14px; background:#ffd400; color:#171717; font-size:14px; font-weight:800; border-radius:999px;'>Всего позиций: {escape(context['total_items'])}</div>"
         "</td></tr></table>"
         "</td></tr>"
         "</table>"
@@ -207,8 +219,9 @@ def _build_inquiry_default_body(context: dict) -> str:
         "<table role='presentation' width='100%' cellspacing='0' cellpadding='0'><tr><td "
         "style='padding:18px 22px; background:#fbf9f4; border:1px solid #eee5d8; border-radius:18px;'>"
         f"<div style='font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#8f867b; margin-bottom:8px;'>Заявка #{escape(context['inquiry_id'])}</div>"
-        "<div style='font-size:28px; line-height:1.2; font-weight:700; color:#171717; margin-bottom:6px;'>Новая заявка с сайта</div>"
-        "<div style='font-size:15px; line-height:1.6; color:#5f584f;'>Клиент ожидает обратную связь. Проверьте контакты и ответьте как можно скорее.</div>"
+        "<div style='font-size:30px; line-height:1.15; font-weight:800; color:#171717; margin-bottom:8px;'>Новая заявка с сайта</div>"
+        f"<div style='font-size:16px; line-height:1.65; color:#5f584f;'>Заявку оставил <strong style='color:#171717;'>{escape(context['name'] or 'клиент')}</strong>. "
+        "Ниже контакты и текст обращения, чтобы менеджер сразу понял контекст.</div>"
         "</td></tr></table>"
         "</td></tr>"
         "<tr><td style='padding:0 0 18px;'>"
@@ -222,7 +235,7 @@ def _build_inquiry_default_body(context: dict) -> str:
         "<table role='presentation' width='100%' cellspacing='0' cellpadding='0'><tr><td "
         "style='padding:18px 22px; background:#ffffff; border:1px solid #eee5d8; border-radius:18px;'>"
         "<div style='font-size:18px; font-weight:700; color:#171717; margin-bottom:14px;'>Сообщение клиента</div>"
-        f"<div style='padding:18px; background:#f5f1ea; border-radius:14px; font-size:15px; line-height:1.7; color:#2e2a25;'>{escape(message_value)}</div>"
+        f"<div style='padding:18px; background:#f5f1ea; border-radius:14px; font-size:15px; line-height:1.8; color:#2e2a25; white-space:pre-line;'>{escape(message_value)}</div>"
         "</td></tr></table>"
         "</td></tr>"
         "</table>"
@@ -239,15 +252,15 @@ def _wrap_email_shell(subject: str, notification_type: str, main_html: str, foot
         "<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='max-width:760px;'>"
         "<tr><td style='padding:0 0 16px;'>"
         "<table role='presentation' width='100%' cellspacing='0' cellpadding='0'><tr>"
-        "<td style='font-size:36px; font-weight:800; color:#171717; letter-spacing:0.01em;'>НОВАТЕХ</td>"
+        "<td style='font-size:36px; font-weight:900; color:#171717; letter-spacing:0.01em;'>НОВАТЕХ</td>"
         f"<td align='right'><span style='display:inline-block; padding:10px 16px; background:#ffd400; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; color:#171717;'>{label}</span></td>"
         "</tr></table>"
         "</td></tr>"
-        "<tr><td style='background:#ffffff; border-radius:28px; padding:32px; box-shadow:0 18px 40px rgba(23,23,23,0.08);'>"
+        "<tr><td style='background:#ffffff; border-radius:28px; padding:36px 32px; box-shadow:0 18px 40px rgba(23,23,23,0.08);'>"
         f"<div style='font-size:38px; line-height:1.1; font-weight:800; color:#171717; margin:0 0 10px;'>{escape(subject)}</div>"
         "<div style='width:120px; height:4px; background:#ffd400; border-radius:999px; margin:0 0 24px;'></div>"
         f"{main_html}"
-        f"<div style='margin-top:24px; font-size:13px; line-height:1.7; color:#6c655d;'>{footer_html}</div>"
+        f"<div style='margin-top:28px; padding-top:18px; border-top:1px solid #eee5d8; font-size:13px; line-height:1.7; color:#6c655d;'>{footer_html}</div>"
         "</td></tr>"
         "<tr><td style='padding:18px 8px 0; font-size:12px; line-height:1.6; color:#7d7468; text-align:center;'>"
         "Письмо отправлено автоматически с сайта НОВАТЕХ. Жёлтые акценты и светлая композиция повторяют визуальный стиль сайта."
@@ -273,9 +286,9 @@ def build_notification_email_html(notification_type: str, context: dict, email_s
         email_settings.subject
         if email_settings and email_settings.subject
         else (
-            "Новый заказ с сайта #{{order_id}}"
+            "Заказ #{{order_id}} от {{name}} {{phone}}"
             if notification_type == EMAIL_NOTIFICATION_TYPE_ORDER
-            else "Новая заявка с сайта #{{inquiry_id}}"
+            else "Заявка #{{inquiry_id}} от {{name}} {{phone}}"
         )
     )
     subject = render_email_template(subject_template, context, escape_values=False)
@@ -297,9 +310,9 @@ def _send_notification(notification_type: str, context: dict) -> bool:
         email_settings.subject
         if email_settings and email_settings.subject
         else (
-            "Новый заказ с сайта #{{order_id}}"
+            "Заказ #{{order_id}} от {{name}} {{phone}}"
             if notification_type == EMAIL_NOTIFICATION_TYPE_ORDER
-            else "Новая заявка с сайта #{{inquiry_id}}"
+            else "Заявка #{{inquiry_id}} от {{name}} {{phone}}"
         )
     )
     subject = render_email_template(subject_template, context, escape_values=False)

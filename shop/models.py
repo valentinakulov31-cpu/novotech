@@ -793,7 +793,7 @@ class OrderEmailSettings(models.Model):
         choices=EMAIL_NOTIFICATION_TYPE_CHOICES,
         default=EMAIL_NOTIFICATION_TYPE_ORDER,
     )
-    subject = models.CharField(max_length=255, default="Новый заказ с сайта")
+    subject = models.CharField(max_length=255, default="Заказ #{{order_id}} от {{name}} {{phone}}")
     intro_html = models.TextField(blank=True, null=True)
     body_html = models.TextField(blank=True, null=True)
     footer_html = models.TextField(blank=True, null=True)

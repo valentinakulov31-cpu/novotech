@@ -8,9 +8,9 @@ def seed_inquiry_template(apps, schema_editor):
     OrderEmailSettings.objects.create(
         title="Inquiry email settings",
         notification_type="inquiry",
-        subject="Новая заявка с сайта #{{inquiry_id}}",
-        intro_html="<p>На сайте появилась новая заявка.</p>",
-        footer_html="<p>Свяжитесь с клиентом в ближайшее время.</p>",
+        subject="Заявка #{{inquiry_id}} от {{name}} {{phone}}",
+        intro_html="<p>На сайте появилась новая заявка. Ниже будут автоматически подставлены контакты и сообщение клиента.</p>",
+        footer_html="<p>Свяжитесь с клиентом как можно скорее и зафиксируйте результат обработки.</p>",
         status="draft",
     )
 

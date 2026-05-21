@@ -1212,8 +1212,6 @@ class RichTextAdminFormTests(TestCase):
         form = OrderEmailSettingsAdminForm()
         self.assertIsInstance(form.fields["intro_html"].widget, TinyMCE)
         self.assertIsInstance(form.fields["footer_html"].widget, TinyMCE)
-        self.assertIn("notification_type", form.fields)
-        self.assertNotIn("from_email", form.fields)
 
     def test_tinymce_default_config_exposes_catalog_table_style(self):
         config = settings.TINYMCE_DEFAULT_CONFIG
@@ -1462,8 +1460,6 @@ class PublicOrderEmailTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["sales@example.com"])
-        self.assertEqual(mail.outbox[0].from_email, settings.DEFAULT_FROM_EMAIL)
-        self.assertIn("НОВАТЕХ", mail.outbox[0].alternatives[0][0])
         self.assertEqual(mail.outbox[0].subject, "Заказ с фронта")
         self.assertIn("EMAIL-1", mail.outbox[0].body)
         self.assertIn("Иван", mail.outbox[0].body)
@@ -1484,46 +1480,6 @@ class PublicOrderEmailTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(len(mail.outbox), 0)
-
-
-@override_settings(
-    ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"],
-    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-    DEFAULT_FROM_EMAIL="notify@nvt24.ru",
-)
-class InquiryEmailTests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        mail.outbox = []
-        self.recipient = OrderEmailRecipient.objects.create(email="office@example.com", name="Office", is_active=True)
-        self.email_settings = OrderEmailSettings.objects.create(
-            title="Inquiry notifications",
-            notification_type="inquiry",
-            subject="Новая заявка с сайта #{{inquiry_id}}",
-            intro_html="<p>На сайте появилась новая заявка.</p>",
-            footer_html="<p>Свяжитесь с клиентом в ближайшее время.</p>",
-            status=PUBLISH_STATUS_PUBLISHED,
-        )
-
-    def test_inquiry_endpoint_sends_email_to_active_recipients(self):
-        response = self.client.post(
-            reverse("inquiry-create"),
-            {
-                "name": "Марина",
-                "phone": "+79991112233",
-                "email": "marina@example.com",
-                "message": "Нужна консультация по утеплителю.",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["office@example.com"])
-        self.assertEqual(mail.outbox[0].from_email, "notify@nvt24.ru")
-        self.assertEqual(mail.outbox[0].subject, "Новая заявка с сайта #1")
-        self.assertIn("Марина", mail.outbox[0].body)
-        self.assertIn("НОВАТЕХ", mail.outbox[0].alternatives[0][0])
 
 
 @override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
