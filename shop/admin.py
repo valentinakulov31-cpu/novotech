@@ -51,6 +51,7 @@ from shop.models import (
     Slider,
     ContactInfo,
 )
+from shop.services.order_email import build_notification_preview_html
 
 
 CYRILLIC_TO_LATIN = {
@@ -1566,8 +1567,9 @@ class OrderEmailSettingsAdminForm(HtmlTableSanitizerMixin, forms.ModelForm):
             mce_attrs={"height": 380},
         )
         self.fields["body_html"].help_text = (
-            "Placeholders: {{order_id}}, {{name}}, {{phone}}, {{email}}, {{address}}, "
-            "{{comment}}, {{total_items}}, {{items_table}}, {{items_text}}."
+            "For order templates: {{order_id}}, {{name}}, {{phone}}, {{email}}, {{address}}, "
+            "{{comment}}, {{total_items}}, {{items_table}}, {{items_text}}. "
+            "For inquiry templates: {{inquiry_id}}, {{name}}, {{phone}}, {{email}}, {{message}}, {{created_at}}."
         )
         self.fields["footer_html"].widget = TinyMCE(
             attrs={"cols": 120, "rows": 14},
@@ -2295,14 +2297,14 @@ class OrderEmailRecipientAdmin(admin.ModelAdmin):
 class OrderEmailSettingsAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
     form = OrderEmailSettingsAdminForm
     singleton_publication = True
-    list_display = ("id", "title", "subject", "from_email", "status", "updated_at", "updated_by", "preview_link")
+    list_display = ("id", "title", "notification_type", "subject", "status", "updated_at", "updated_by", "preview_link")
     list_filter = ("status",)
-    search_fields = ("title", "subject", "from_email", "intro_html", "footer_html")
+    search_fields = ("title", "subject", "notification_type", "intro_html", "footer_html")
     readonly_fields = ("preview_link", "created_at", "updated_at", "updated_by")
     fields = (
         "title",
+        "notification_type",
         "subject",
-        "from_email",
         "intro_html",
         "body_html",
         "footer_html",
@@ -2313,7 +2315,20 @@ class OrderEmailSettingsAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
         "updated_at",
     )
 
+    def _unpublish_siblings(self, obj, user):
+        siblings = (
+            self.model.objects.exclude(pk=obj.pk)
+            .filter(status=PUBLISH_STATUS_PUBLISHED, notification_type=obj.notification_type)
+        )
+        for sibling in siblings:
+            sibling.status = PUBLISH_STATUS_DRAFT
+            if hasattr(sibling, "updated_by"):
+                sibling.updated_by = user
+            sibling.save()
+
     def render_preview_html(self, obj):
+        return build_notification_preview_html(obj.notification_type, obj)
+
         sample_order_block = (
             "<h2>New order #123</h2>"
             "<ul>"

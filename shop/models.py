@@ -11,6 +11,12 @@ PUBLISH_STATUS_CHOICES = [
     (PUBLISH_STATUS_DRAFT, "Draft"),
     (PUBLISH_STATUS_PUBLISHED, "Published"),
 ]
+EMAIL_NOTIFICATION_TYPE_ORDER = "order"
+EMAIL_NOTIFICATION_TYPE_INQUIRY = "inquiry"
+EMAIL_NOTIFICATION_TYPE_CHOICES = [
+    (EMAIL_NOTIFICATION_TYPE_ORDER, "Order"),
+    (EMAIL_NOTIFICATION_TYPE_INQUIRY, "Inquiry"),
+]
 
 CHARACTERISTIC_TYPE_TEXT = "text"
 CHARACTERISTIC_TYPE_NUMBER = "number"
@@ -760,7 +766,7 @@ class PublicOrderItem(models.Model):
 
 
 class OrderEmailRecipient(models.Model):
-    """Recipients for public order email notifications."""
+    """Recipients for website email notifications."""
 
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -771,22 +777,26 @@ class OrderEmailRecipient(models.Model):
     class Meta:
         db_table = "order_email_recipients"
         ordering = ["email"]
-        verbose_name = "Order email recipient"
-        verbose_name_plural = "Order email recipients"
+        verbose_name = "Email recipient"
+        verbose_name_plural = "Email recipients"
 
     def __str__(self):
         return self.email
 
 
 class OrderEmailSettings(models.Model):
-    """Settings for new order email notifications."""
+    """Settings for website email notifications."""
 
     title = models.CharField(max_length=255, default="Order email settings")
+    notification_type = models.CharField(
+        max_length=20,
+        choices=EMAIL_NOTIFICATION_TYPE_CHOICES,
+        default=EMAIL_NOTIFICATION_TYPE_ORDER,
+    )
     subject = models.CharField(max_length=255, default="Новый заказ с сайта")
     intro_html = models.TextField(blank=True, null=True)
     body_html = models.TextField(blank=True, null=True)
     footer_html = models.TextField(blank=True, null=True)
-    from_email = models.EmailField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=PUBLISH_STATUS_CHOICES, default=PUBLISH_STATUS_DRAFT)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -801,8 +811,8 @@ class OrderEmailSettings(models.Model):
     class Meta:
         db_table = "order_email_settings"
         ordering = ["-updated_at", "-id"]
-        verbose_name = "Order email settings"
-        verbose_name_plural = "Order email settings"
+        verbose_name = "Email template"
+        verbose_name_plural = "Email templates"
 
     def __str__(self):
         return self.title

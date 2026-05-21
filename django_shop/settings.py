@@ -99,16 +99,27 @@ WSGI_APPLICATION = 'django_shop.wsgi.application'
 database_url = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5432/dbname')
 url = urlparse(database_url)
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': url.path[1:],  # Remove leading slash
-        'USER': url.username,
-        'PASSWORD': url.password,
-        'HOST': url.hostname,
-        'PORT': url.port or 5432,
+if url.scheme == "sqlite":
+    sqlite_name = url.path if url.path else "/db.sqlite3"
+    if sqlite_name.startswith("/") and len(sqlite_name) >= 3 and sqlite_name[2] == ":":
+        sqlite_name = sqlite_name[1:]
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": sqlite_name,
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': url.path[1:],  # Remove leading slash
+            'USER': url.username,
+            'PASSWORD': url.password,
+            'HOST': url.hostname,
+            'PORT': url.port or 5432,
+        }
+    }
 
 
 # Password validation

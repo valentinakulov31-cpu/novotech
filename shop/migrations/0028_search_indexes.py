@@ -50,6 +50,37 @@ def populate_search_indexes(apps, schema_editor):
         product.save(update_fields=["search_index"])
 
 
+def create_pg_search_indexes(apps, schema_editor):
+    if schema_editor.connection.vendor != "postgresql":
+        return
+    schema_editor.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+    schema_editor.execute(
+        "CREATE INDEX IF NOT EXISTS shop_brand_search_index_trgm "
+        "ON brands USING gin (search_index gin_trgm_ops);"
+    )
+    schema_editor.execute(
+        "CREATE INDEX IF NOT EXISTS shop_group_search_index_trgm "
+        "ON groups USING gin (search_index gin_trgm_ops);"
+    )
+    schema_editor.execute(
+        "CREATE INDEX IF NOT EXISTS shop_product_search_index_trgm "
+        "ON products USING gin (search_index gin_trgm_ops);"
+    )
+    schema_editor.execute(
+        "CREATE INDEX IF NOT EXISTS shop_characteristic_search_index_trgm "
+        "ON characteristics USING gin (search_index gin_trgm_ops);"
+    )
+
+
+def drop_pg_search_indexes(apps, schema_editor):
+    if schema_editor.connection.vendor != "postgresql":
+        return
+    schema_editor.execute("DROP INDEX IF EXISTS shop_brand_search_index_trgm;")
+    schema_editor.execute("DROP INDEX IF EXISTS shop_group_search_index_trgm;")
+    schema_editor.execute("DROP INDEX IF EXISTS shop_product_search_index_trgm;")
+    schema_editor.execute("DROP INDEX IF EXISTS shop_characteristic_search_index_trgm;")
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -78,25 +109,8 @@ class Migration(migrations.Migration):
             field=models.TextField(blank=True, default=""),
         ),
         migrations.RunPython(populate_search_indexes, migrations.RunPython.noop),
-        migrations.RunSQL("CREATE EXTENSION IF NOT EXISTS pg_trgm;"),
-        migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS shop_brand_search_index_trgm "
-            "ON brands USING gin (search_index gin_trgm_ops);",
-            reverse_sql="DROP INDEX IF EXISTS shop_brand_search_index_trgm;",
-        ),
-        migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS shop_group_search_index_trgm "
-            "ON groups USING gin (search_index gin_trgm_ops);",
-            reverse_sql="DROP INDEX IF EXISTS shop_group_search_index_trgm;",
-        ),
-        migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS shop_product_search_index_trgm "
-            "ON products USING gin (search_index gin_trgm_ops);",
-            reverse_sql="DROP INDEX IF EXISTS shop_product_search_index_trgm;",
-        ),
-        migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS shop_characteristic_search_index_trgm "
-            "ON characteristics USING gin (search_index gin_trgm_ops);",
-            reverse_sql="DROP INDEX IF EXISTS shop_characteristic_search_index_trgm;",
+        migrations.RunPython(
+            create_pg_search_indexes,
+            drop_pg_search_indexes,
         ),
     ]

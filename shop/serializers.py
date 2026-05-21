@@ -297,11 +297,11 @@ class OrderEmailSettingsSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'title',
+            'notification_type',
             'subject',
             'intro_html',
             'body_html',
             'footer_html',
-            'from_email',
             'is_active',
             'created_at',
             'updated_at',
