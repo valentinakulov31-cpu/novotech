@@ -273,24 +273,25 @@ def _wrap_email_shell(subject: str, notification_type: str, main_html: str, foot
 
 
 def build_notification_email_html(notification_type: str, context: dict, email_settings: OrderEmailSettings | None) -> str:
-    intro_html = render_email_template(email_settings.intro_html if email_settings else "", context) if email_settings else ""
-    body_html = render_email_template(email_settings.body_html if email_settings else "", context) if email_settings else ""
-    footer_html = render_email_template(email_settings.footer_html if email_settings else "", context) if email_settings else ""
-    if not body_html.strip():
+    if email_settings:
+        intro_html = render_email_template(email_settings.intro_html or "", context)
+        body_html = render_email_template(email_settings.body_html or "", context)
+        footer_html = render_email_template(email_settings.footer_html or "", context)
+        subject_template = email_settings.subject
+    else:
+        intro_html = ""
         body_html = (
             _build_order_default_body(context)
             if notification_type == EMAIL_NOTIFICATION_TYPE_ORDER
             else _build_inquiry_default_body(context)
         )
-    subject_template = (
-        email_settings.subject
-        if email_settings and email_settings.subject
-        else (
+        footer_html = ""
+        subject_template = (
             "Заказ #{{order_id}} от {{name}} {{phone}}"
             if notification_type == EMAIL_NOTIFICATION_TYPE_ORDER
             else "Заявка #{{inquiry_id}} от {{name}} {{phone}}"
         )
-    )
+
     subject = render_email_template(subject_template, context, escape_values=False)
     return _wrap_email_shell(subject, notification_type, f"{intro_html}{body_html}", footer_html)
 
