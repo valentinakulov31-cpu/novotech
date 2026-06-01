@@ -1276,6 +1276,20 @@ def workbook_bytes_from_headers_and_rows(headers, rows, title="Products"):
     return buffer.getvalue()
 
 
+SEO_FIELD_NAMES = (
+    "seo_title",
+    "seo_h1",
+    "seo_description",
+    "seo_keywords",
+    "seo_canonical_url",
+    "seo_robots",
+)
+SEO_AUTO_HELP_TEXT = "Leave empty to let the API generate this SEO value automatically."
+SEO_GROUP_PLACEHOLDER_HELP_TEXT = (
+    "Supports placeholders: {name}, {slug}, {parent}, {city}, {city_slug}, {city_prep}."
+)
+
+
 class AdminMediaFormMixin(forms.ModelForm):
     media_upload = forms.FileField(required=False, label="Upload file")
     media_field_name = None
@@ -1307,6 +1321,64 @@ class HtmlTableSanitizerMixin:
 def render_multiline_text(value):
     text = escape(str(value or ""))
     return text.replace("\n", "<br>")
+
+
+class SeoFieldsAdminFormMixin:
+    seo_optional_fields = SEO_FIELD_NAMES
+    seo_help_text_by_field = {}
+    seo_default_help_text = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in self.seo_optional_fields:
+            field = self.fields.get(field_name)
+            if not field:
+                continue
+            field.required = False
+            help_text = self.seo_help_text_by_field.get(field_name, self.seo_default_help_text)
+            if help_text:
+                field.help_text = help_text
+
+
+class UploadedAssetAdminFormMixin(forms.ModelForm):
+    upload_field_name = None
+    upload_folder_name = "generic"
+    generated_optional_fields = ()
+    inferred_kind_field_name = None
+    title_field_name = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        mark_generated_file_fields_optional(self, extra_fields=list(self.generated_optional_fields))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        validate_new_file_upload(self, self.upload_field_name)
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        upload = self.cleaned_data.get(self.upload_field_name)
+        if upload:
+            uploaded = save_admin_upload(upload, self.upload_folder_name)
+            instance.storage_path = uploaded["storage_path"]
+            instance.url = uploaded["url"]
+            instance.mime_type = uploaded["mime_type"]
+            instance.size_bytes = uploaded["size_bytes"]
+            if self.inferred_kind_field_name:
+                setattr(instance, self.inferred_kind_field_name, infer_file_kind(uploaded["mime_type"]))
+            if self.title_field_name and not getattr(instance, self.title_field_name):
+                setattr(instance, self.title_field_name, upload.name)
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
+class TabbedFieldsetsAdminMixin:
+    class Media:
+        css = {"all": ("shop/css/admin_tabbed_fieldsets.css",)}
+        js = ("shop/js/admin_tabbed_fieldsets.js",)
 
 
 class PublishWorkflowAdminMixin:
@@ -1467,27 +1539,28 @@ class BrandAdminForm(AdminMediaFormMixin):
         fields = "__all__"
 
 
-class GroupAdminForm(AdminMediaFormMixin):
+class GroupAdminForm(SeoFieldsAdminFormMixin, AdminMediaFormMixin):
     media_field_name = "media"
     upload_folder_name = "groups"
     search_synonyms = SynonymListField(label="Search synonyms", required=False)
+    seo_help_text_by_field = {
+        "seo_title": SEO_GROUP_PLACEHOLDER_HELP_TEXT,
+        "seo_h1": SEO_GROUP_PLACEHOLDER_HELP_TEXT,
+        "seo_description": SEO_GROUP_PLACEHOLDER_HELP_TEXT,
+        "seo_keywords": SEO_GROUP_PLACEHOLDER_HELP_TEXT,
+        "seo_canonical_url": SEO_GROUP_PLACEHOLDER_HELP_TEXT,
+    }
 
     class Meta:
         model = Group
         fields = "__all__"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field_name in ("seo_title", "seo_h1", "seo_description", "seo_keywords", "seo_canonical_url"):
-            self.fields[field_name].help_text = (
-                "Supports placeholders: {name}, {slug}, {parent}, {city}, {city_slug}, {city_prep}."
-            )
 
-
-class ProductAdminForm(HtmlTableSanitizerMixin, AdminMediaFormMixin):
+class ProductAdminForm(HtmlTableSanitizerMixin, SeoFieldsAdminFormMixin, AdminMediaFormMixin):
     media_field_name = "media"
     upload_folder_name = "products"
     html_field_names = ("assortment_html", "characteristics_html")
+    seo_default_help_text = SEO_AUTO_HELP_TEXT
 
     class Meta:
         model = Product
@@ -1508,9 +1581,6 @@ class ProductAdminForm(HtmlTableSanitizerMixin, AdminMediaFormMixin):
             attrs={"cols": 120, "rows": 22},
             mce_attrs={"height": 460},
         )
-        for field_name in ("seo_title", "seo_h1", "seo_description", "seo_keywords", "seo_canonical_url", "seo_robots"):
-            self.fields[field_name].required = False
-            self.fields[field_name].help_text = "Leave empty to let the API generate this SEO value automatically."
 
 
 class NewsAdminForm(HtmlTableSanitizerMixin, AdminMediaFormMixin):
@@ -1596,103 +1666,40 @@ class SliderAdminForm(forms.ModelForm):
         return instance
 
 
-class ProductMediaAdminForm(forms.ModelForm):
+class ProductMediaAdminForm(UploadedAssetAdminFormMixin):
     media_upload = forms.FileField(required=False, label="Upload file")
+    upload_field_name = "media_upload"
+    upload_folder_name = "product_media"
+    generated_optional_fields = ("media_kind",)
+    inferred_kind_field_name = "media_kind"
 
     class Meta:
         model = ProductMedia
         fields = "__all__"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        mark_generated_file_fields_optional(self, extra_fields=["media_kind"])
 
-    def clean(self):
-        cleaned_data = super().clean()
-        validate_new_file_upload(self, "media_upload")
-        return cleaned_data
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        upload = self.cleaned_data.get("media_upload")
-        if upload:
-            uploaded = save_admin_upload(upload, "product_media")
-            instance.storage_path = uploaded["storage_path"]
-            instance.url = uploaded["url"]
-            instance.mime_type = uploaded["mime_type"]
-            instance.media_kind = infer_file_kind(uploaded["mime_type"])
-            instance.size_bytes = uploaded["size_bytes"]
-        if commit:
-            instance.save()
-            self.save_m2m()
-        return instance
-
-
-class ProductCertificateAdminForm(forms.ModelForm):
+class ProductCertificateAdminForm(UploadedAssetAdminFormMixin):
     certificate_upload = forms.FileField(required=False, label="Upload certificate")
+    upload_field_name = "certificate_upload"
+    upload_folder_name = "product_certificates"
+    title_field_name = "title"
 
     class Meta:
         model = ProductCertificate
         fields = "__all__"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        mark_generated_file_fields_optional(self)
 
-    def clean(self):
-        cleaned_data = super().clean()
-        validate_new_file_upload(self, "certificate_upload")
-        return cleaned_data
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        upload = self.cleaned_data.get("certificate_upload")
-        if upload:
-            uploaded = save_admin_upload(upload, "product_certificates")
-            instance.storage_path = uploaded["storage_path"]
-            instance.url = uploaded["url"]
-            instance.mime_type = uploaded["mime_type"]
-            instance.size_bytes = uploaded["size_bytes"]
-            if not instance.title:
-                instance.title = upload.name
-        if commit:
-            instance.save()
-            self.save_m2m()
-        return instance
-
-
-class ProductGalleryItemAdminForm(forms.ModelForm):
+class ProductGalleryItemAdminForm(UploadedAssetAdminFormMixin):
     gallery_upload = forms.FileField(required=False, label="Upload gallery file")
+    upload_field_name = "gallery_upload"
+    upload_folder_name = "product_gallery"
+    generated_optional_fields = ("file_kind",)
+    inferred_kind_field_name = "file_kind"
+    title_field_name = "title"
 
     class Meta:
         model = ProductGalleryItem
         fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        mark_generated_file_fields_optional(self, extra_fields=["file_kind"])
-
-    def clean(self):
-        cleaned_data = super().clean()
-        validate_new_file_upload(self, "gallery_upload")
-        return cleaned_data
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        upload = self.cleaned_data.get("gallery_upload")
-        if upload:
-            uploaded = save_admin_upload(upload, "product_gallery")
-            instance.storage_path = uploaded["storage_path"]
-            instance.url = uploaded["url"]
-            instance.mime_type = uploaded["mime_type"]
-            instance.file_kind = infer_file_kind(uploaded["mime_type"])
-            instance.size_bytes = uploaded["size_bytes"]
-            if not instance.title:
-                instance.title = upload.name
-        if commit:
-            instance.save()
-            self.save_m2m()
-        return instance
 
 
 class ProductCharacteristicAdminForm(forms.ModelForm):
@@ -1712,70 +1719,26 @@ class ProductCharacteristicAdminForm(forms.ModelForm):
                 self.fields["characteristic"].queryset = Characteristic.objects.filter(group=selected_product.group).order_by("name", "id")
 
 
-class NewsAttachmentAdminForm(forms.ModelForm):
+class NewsAttachmentAdminForm(UploadedAssetAdminFormMixin):
     attachment_upload = forms.FileField(required=False, label="Upload attachment")
+    upload_field_name = "attachment_upload"
+    upload_folder_name = "news_attachments"
+    title_field_name = "title"
 
     class Meta:
         model = NewsAttachment
         fields = "__all__"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        mark_generated_file_fields_optional(self)
 
-    def clean(self):
-        cleaned_data = super().clean()
-        validate_new_file_upload(self, "attachment_upload")
-        return cleaned_data
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        upload = self.cleaned_data.get("attachment_upload")
-        if upload:
-            uploaded = save_admin_upload(upload, "news_attachments")
-            instance.storage_path = uploaded["storage_path"]
-            instance.url = uploaded["url"]
-            instance.mime_type = uploaded["mime_type"]
-            instance.size_bytes = uploaded["size_bytes"]
-            if not instance.title:
-                instance.title = upload.name
-        if commit:
-            instance.save()
-            self.save_m2m()
-        return instance
-
-
-class SertAdminForm(forms.ModelForm):
+class SertAdminForm(UploadedAssetAdminFormMixin):
     file_upload = forms.FileField(required=False, label="Upload file")
+    upload_field_name = "file_upload"
+    upload_folder_name = "serts"
+    title_field_name = "title"
 
     class Meta:
         model = Sert
         fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        mark_generated_file_fields_optional(self)
-
-    def clean(self):
-        cleaned_data = super().clean()
-        validate_new_file_upload(self, "file_upload")
-        return cleaned_data
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        upload = self.cleaned_data.get("file_upload")
-        if upload:
-            uploaded = save_admin_upload(upload, "serts")
-            instance.storage_path = uploaded["storage_path"]
-            instance.url = uploaded["url"]
-            instance.mime_type = uploaded["mime_type"]
-            instance.size_bytes = uploaded["size_bytes"]
-            if not instance.title:
-                instance.title = upload.name
-        if commit:
-            instance.save()
-            self.save_m2m()
-        return instance
 
 
 class ProductMediaInlineForm(ProductMediaAdminForm):
@@ -1911,32 +1874,35 @@ class CityAdmin(admin.ModelAdmin):
 
 
 @admin.register(Group)
-class GroupAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
+class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelAdmin):
     form = GroupAdminForm
     list_display = ("id", "name", "slug", "parent", "media_preview")
     search_fields = ("name", "slug", "seo_title", "seo_h1")
     list_filter = ("parent",)
     readonly_fields = ("media_preview",)
-    fields = (
-        "parent",
-        "name",
-        "slug",
-        "search_synonyms",
-        "description",
-        "media",
-        "media_upload",
-        "media_preview",
-        "seo_title",
-        "seo_h1",
-        "seo_description",
-        "seo_keywords",
-        "seo_canonical_url",
-        "seo_robots",
+    fieldsets = (
+        ("Основное", {
+            "classes": ("tabbed-fieldset",),
+            "fields": (
+                "parent",
+                "name",
+                "slug",
+                "search_synonyms",
+                "description",
+                "media",
+                "media_upload",
+                "media_preview",
+            ),
+        }),
+        ("SEO", {
+            "classes": ("tabbed-fieldset",),
+            "fields": SEO_FIELD_NAMES,
+        }),
     )
 
 
 @admin.register(Product)
-class ProductAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
+class ProductAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelAdmin):
     form = ProductAdminForm
     change_list_template = "admin/shop/product/change_list.html"
     inlines = [ProductMediaInline, ProductGalleryItemInline, ProductCertificateInline]
@@ -1945,26 +1911,29 @@ class ProductAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
     autocomplete_fields = ("brand", "group")
     list_filter = ("available", "brand", "group")
     readonly_fields = ("media_preview",)
-    fields = (
-        "sku",
-        "slug",
-        "name",
-        "price",
-        "currency",
-        "description",
-        "assortment_html",
-        "characteristics_html",
-        "group",
-        "brand",
-        "media_preview",
-        "available",
-        "search_tsv",
-        "seo_title",
-        "seo_h1",
-        "seo_description",
-        "seo_keywords",
-        "seo_canonical_url",
-        "seo_robots",
+    fieldsets = (
+        ("Основное", {
+            "classes": ("tabbed-fieldset",),
+            "fields": (
+                "sku",
+                "slug",
+                "name",
+                "price",
+                "currency",
+                "description",
+                "assortment_html",
+                "characteristics_html",
+                "group",
+                "brand",
+                "media_preview",
+                "available",
+                "search_tsv",
+            ),
+        }),
+        ("SEO", {
+            "classes": ("tabbed-fieldset",),
+            "fields": SEO_FIELD_NAMES,
+        }),
     )
 
     def get_urls(self):

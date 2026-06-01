@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+from difflib import SequenceMatcher
 
 from django.db.models import Case, Count, FloatField, IntegerField, Max, Min, Q, Value, When
 from django.db.models.functions import Cast
@@ -16,6 +17,7 @@ from shop.seo import build_product_seo, resolve_city
 
 
 SEARCH_FUZZY_THRESHOLD = 0.18
+PYTHON_FUZZY_RATIO_THRESHOLD = 0.78
 
 
 def parse_bool(value):
@@ -147,6 +149,85 @@ def score_group_expression(token_groups, fields):
     return score
 
 
+def _search_text_from_values(values):
+    parts = []
+    for value in values:
+        if value in (None, ""):
+            continue
+        parts.append(str(value))
+    return " ".join(parts)
+
+
+def _tokenize_search_words(value):
+    words = []
+    seen = set()
+    for raw_word in str(value or "").split():
+        word = normalize_search_token(raw_word)
+        if len(word) < 3 or word in seen:
+            continue
+        seen.add(word)
+        words.append(word)
+    return words
+
+
+def _word_matches_variant(word, variant):
+    if not word or not variant:
+        return False
+    if word == variant:
+        return True
+    if len(word) >= 4 and len(variant) >= 4:
+        if word in variant or variant in word:
+            return True
+    if len(word) >= 5 and len(variant) >= 5:
+        return SequenceMatcher(None, word, variant).ratio() >= PYTHON_FUZZY_RATIO_THRESHOLD
+    return False
+
+
+def _fuzzy_group_score(candidate_words, variants):
+    best_score = 0.0
+    for variant in variants:
+        normalized_variant = normalize_search_token(variant)
+        if not normalized_variant:
+            continue
+        for word in candidate_words:
+            if not _word_matches_variant(word, normalized_variant):
+                continue
+            score = 1.0 if word == normalized_variant else SequenceMatcher(None, word, normalized_variant).ratio()
+            if score > best_score:
+                best_score = score
+    return best_score
+
+
+def _python_fuzzy_match_queryset(queryset, token_groups, fuzzy_fields, require_all_tokens):
+    matches = []
+    for row in queryset.values("id", *fuzzy_fields):
+        candidate_text = _search_text_from_values(row.get(field_name) for field_name in fuzzy_fields)
+        candidate_words = _tokenize_search_words(candidate_text)
+        if not candidate_words:
+            continue
+
+        group_scores = []
+        for variants in token_groups:
+            score = _fuzzy_group_score(candidate_words, variants)
+            if score <= 0:
+                if require_all_tokens:
+                    group_scores = []
+                    break
+                continue
+            group_scores.append(score)
+
+        if not group_scores:
+            continue
+
+        if require_all_tokens and len(group_scores) != len(token_groups):
+            continue
+
+        similarity = sum(group_scores) / len(group_scores)
+        matches.append((row["id"], float(len(group_scores)), similarity))
+
+    return matches
+
+
 def apply_ranked_search(queryset, query, exact_fields, fuzzy_fields=None, require_all_tokens=True, threshold=SEARCH_FUZZY_THRESHOLD):
     query = (query or "").strip()
     token_groups = tokenize_query_groups(query)
@@ -160,8 +241,30 @@ def apply_ranked_search(queryset, query, exact_fields, fuzzy_fields=None, requir
         search_rank=Cast("search_exact_score", FloatField())
     )
     exact_query = token_group_match_query(token_groups, exact_fields, require_all=require_all_tokens)
-    queryset = queryset.filter(exact_query)
-    return queryset.distinct()
+    exact_queryset = queryset.filter(exact_query).distinct()
+    if exact_queryset.exists() or not fuzzy_fields:
+        return exact_queryset
+
+    fuzzy_matches = _python_fuzzy_match_queryset(queryset, token_groups, fuzzy_fields, require_all_tokens)
+    if not fuzzy_matches:
+        return exact_queryset
+
+    rank_case = Case(
+        *[When(id=item_id, then=Value(score)) for item_id, score, _ in fuzzy_matches],
+        default=Value(0.0),
+        output_field=FloatField(),
+    )
+    similarity_case = Case(
+        *[When(id=item_id, then=Value(similarity)) for item_id, _, similarity in fuzzy_matches],
+        default=Value(0.0),
+        output_field=FloatField(),
+    )
+    fuzzy_ids = [item_id for item_id, _, _ in fuzzy_matches]
+    return queryset.filter(id__in=fuzzy_ids).annotate(
+        search_exact_score=Value(0, output_field=IntegerField()),
+        search_rank=rank_case,
+        search_similarity=similarity_case,
+    ).distinct()
 
 
 def _build_legacy_payload(payload):

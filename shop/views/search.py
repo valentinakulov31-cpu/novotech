@@ -135,14 +135,6 @@ class GlobalSearchView(APIView):
             )
             .order_by("-search_rank", "-search_similarity", "name")[:10]
         )
-        synonym_brand_ids = []
-        for token in tokens:
-            synonym_brand_ids.extend(
-                Brand.objects.filter(search_synonyms__contains=[token]).values_list("id", flat=True)
-            )
-        if synonym_brand_ids:
-            brands = Brand.objects.filter(Q(id__in=[brand.id for brand in brands]) | Q(id__in=synonym_brand_ids)).order_by("name")[:10]
-
         characteristics = (
             apply_ranked_search(
                 Characteristic.objects.select_related("group"),

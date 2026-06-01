@@ -13,7 +13,7 @@
 <div id="content-main">
   <h1>{{ title }}</h1>
   <p>{{ subtitle }}</p>
-  <p>Expected columns: <code>sku</code>, optional <code>slug</code>, <code>name</code>, <code>price</code>, <code>currency</code>, <code>description</code>, <code>assortment_html</code>, <code>characteristics_html</code>, <code>search_tsv</code>, SEO columns, <code>group_slug</code>, <code>brand_slug</code>, <code>available</code>, <code>media_urls</code>, <code>gallery_urls</code>, <code>document_urls</code>, <code>certificate_urls</code>, optional title columns, and any number of <code>char_*</code> columns.</p>
+  <p>Expected columns: <code>sku</code>, optional <code>slug</code>, <code>name</code>, <code>price</code>, <code>currency</code>, <code>description</code>, <code>assortment_html</code>, <code>characteristics_html</code>, <code>search_tsv</code>, SEO columns, <code>group_slug</code>, <code>brand_slug</code>, <code>available</code>, <code>media_urls</code>, <code>gallery_urls</code>, <code>gallery_titles</code>, <code>certificate_urls</code>, <code>certificate_titles</code>, and any number of <code>char_*</code> columns.</p>
   <p>File/link cells can contain public URLs, existing <code>/static/...</code> URLs, or local server-readable file paths. Multiple values may be separated with commas, semicolons, or new lines.</p>
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}

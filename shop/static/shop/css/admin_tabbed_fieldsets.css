@@ -1,0 +1,31 @@
+.change-form .shop-admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  flex-wrap: wrap;
+}
+
+.change-form .shop-admin-tabs__button {
+  border: 1px solid #d4d4d4;
+  background: #fff;
+  color: #222;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.change-form .shop-admin-tabs__button:hover {
+  border-color: #888;
+}
+
+.change-form .shop-admin-tabs__button.is-active {
+  background: #417690;
+  border-color: #417690;
+  color: #fff;
+}
+
+.change-form fieldset.tabbed-fieldset.is-hidden {
+  display: none;
+}

@@ -18,7 +18,6 @@ from shop.models import (
     NewsAttachment,
     Product,
     ProductCertificate,
-    ProductDocument,
     ProductGalleryItem,
     ProductMedia,
     Sert,
@@ -103,7 +102,6 @@ class Command(BaseCommand):
 
         self.localize_file_model(ProductMedia.objects.all(), "product_media", "Product media", kind_field="media_kind")
         self.localize_file_model(ProductGalleryItem.objects.all(), "product_gallery", "Product gallery", kind_field="file_kind")
-        self.localize_file_model(ProductDocument.objects.all(), "product_documents", "Product document")
         self.localize_file_model(ProductCertificate.objects.all(), "product_certificates", "Product certificate")
         self.localize_file_model(NewsAttachment.objects.all(), "news_attachments", "News attachment")
         self.localize_file_model(Sert.objects.all(), "serts", "Sert file")

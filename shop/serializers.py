@@ -258,6 +258,15 @@ class InquiryCreateSerializer(serializers.ModelSerializer):
         model = Inquiry
         fields = ['name', 'phone', 'email', 'message']
 
+    def validate(self, attrs):
+        phone = str(attrs.get("phone") or "").strip()
+        email = str(attrs.get("email") or "").strip()
+        if not phone and not email:
+            raise serializers.ValidationError(
+                {"non_field_errors": ["At least one contact is required: phone or email."]}
+            )
+        return attrs
+
 
 class InquirySerializer(serializers.ModelSerializer):
     class Meta:

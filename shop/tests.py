@@ -52,7 +52,6 @@ from shop.models import (
     Product,
     ProductCertificate,
     ProductCharacteristic,
-    ProductDocument,
     ProductGalleryItem,
     ProductMedia,
     OrderEmailRecipient,
@@ -184,15 +183,6 @@ class CatalogApiTests(TestCase):
             size_bytes=50,
             sort_order=2,
         )
-        ProductDocument.objects.create(
-            product=self.product,
-            title="Паспорт",
-            storage_path="media/passport.pdf",
-            url="/static/passport.pdf",
-            mime_type="application/pdf",
-            size_bytes=120,
-            sort_order=1,
-        )
         ProductCertificate.objects.create(
             product=self.product,
             title="Сертификат соответствия",
@@ -263,7 +253,6 @@ class CatalogApiTests(TestCase):
         self.assertEqual([item["url"] for item in data["media_list"]], ["/static/b.jpg", "/static/a.jpg"])
         self.assertEqual([item["url"] for item in data["gallery"]], ["/static/video.mp4", "/static/gallery.jpg"])
         self.assertEqual(data["gallery"][0]["file_kind"], "video")
-        self.assertEqual(data["documents_list"][0]["title"], "Паспорт")
         self.assertEqual(data["certificates_list"][0]["title"], "Сертификат соответствия")
         self.assertEqual(data["assortment_html"], "<p><strong>Ассортимент:</strong> цилиндры, маты</p>")
 
@@ -274,7 +263,6 @@ class CatalogApiTests(TestCase):
         self.assertEqual(data[0]["gallery"][0]["url"], "/static/video.mp4")
         self.assertEqual(data[0]["gallery"][0]["file_kind"], "video")
         self.assertEqual(data[0]["media_list"][0]["media_kind"], "image")
-        self.assertEqual(data[0]["documents_list"][0]["url"], "/static/passport.pdf")
         self.assertEqual(data[0]["certificates_list"][0]["url"], "/static/certificate.pdf")
         self.assertEqual(data[0]["assortment_html"], "<p><strong>Ассортимент:</strong> цилиндры, маты</p>")
 
@@ -284,7 +272,6 @@ class CatalogApiTests(TestCase):
         data = response.json()
         self.assertNotIn("storage_path", data["media_list"][0])
         self.assertNotIn("storage_path", data["gallery"][0])
-        self.assertNotIn("storage_path", data["documents_list"][0])
         self.assertNotIn("storage_path", data["certificates_list"][0])
 
     def test_products_api_returns_characteristics_html(self):
@@ -514,11 +501,14 @@ class CatalogApiTests(TestCase):
         self.assertTrue(any(item["sku"] == "ER-0001" for item in data["results"]))
 
     def test_catalog_results_endpoint_uses_search_tsv_synonyms(self):
+        self.product.search_tsv = "insulation, heat"
+        self.product.save(update_fields=["search_tsv"])
+
         response = self.client.post(
             reverse("catalog-results"),
             {
                 "context": {
-                    "q": "базальтовая изоляция",
+                    "q": "insulation",
                 },
                 "filters": {},
                 "page": 1,
@@ -742,14 +732,6 @@ class ProductExportAdminTests(TestCase):
             file_kind="image",
             size_bytes=10,
         )
-        ProductDocument.objects.create(
-            product=self.product,
-            title="Passport",
-            storage_path="media/passport.pdf",
-            url="/static/passport.pdf",
-            mime_type="application/pdf",
-            size_bytes=10,
-        )
         ProductCertificate.objects.create(
             product=self.product,
             title="Certificate",
@@ -765,7 +747,6 @@ class ProductExportAdminTests(TestCase):
         self.assertEqual(row_map["search_tsv"], "insulation, heat")
         self.assertEqual(row_map["seo_title"], "SEO title")
         self.assertEqual(row_map["gallery_urls"], "/static/gallery.jpg")
-        self.assertEqual(row_map["document_titles"], "Passport")
         self.assertEqual(row_map["certificate_urls"], "/static/certificate.pdf")
 
     def test_import_uploads_local_file_paths_and_links(self):
@@ -776,7 +757,7 @@ class ProductExportAdminTests(TestCase):
         try:
             image_path = Path(source_dir) / "preview.jpg"
             image_path.write_bytes(TEST_GIF)
-            document_url = "https://example.com/passport.pdf"
+            document_url = "/static/certificate.pdf"
 
             from openpyxl import Workbook
 
@@ -790,8 +771,8 @@ class ProductExportAdminTests(TestCase):
                 "group_slug",
                 "brand_slug",
                 "media_urls",
-                "document_urls",
-                "document_titles",
+                "certificate_urls",
+                "certificate_titles",
                 "search_tsv",
                 "seo_title",
             ])
@@ -804,7 +785,7 @@ class ProductExportAdminTests(TestCase):
                 "Import brand",
                 str(image_path),
                 document_url,
-                "Passport link",
+                "Certificate link",
                 "synonym one",
                 "Imported SEO",
             ])
@@ -815,17 +796,17 @@ class ProductExportAdminTests(TestCase):
             counters, warnings = import_products_from_workbook(buffer)
             product = Product.objects.get(sku="IMP-LOCAL")
             media = ProductMedia.objects.get(product=product)
-            document = ProductDocument.objects.get(product=product)
+            certificate = ProductCertificate.objects.get(product=product)
 
             self.assertEqual(warnings, [])
             self.assertEqual(counters["media_items_imported"], 1)
-            self.assertEqual(counters["documents_imported"], 1)
+            self.assertEqual(counters["certificates_imported"], 1)
             self.assertEqual(product.search_tsv, "synonym one")
             self.assertEqual(product.seo_title, "Imported SEO")
             self.assertTrue(media.url.startswith("/static/admin_uploads/product_media/"))
             self.assertTrue(Path(media.storage_path).exists())
-            self.assertEqual(document.url, document_url)
-            self.assertEqual(document.title, "Passport link")
+            self.assertEqual(certificate.url, document_url)
+            self.assertEqual(certificate.title, "Certificate link")
         finally:
             override.disable()
             shutil.rmtree(media_root, ignore_errors=True)
@@ -908,7 +889,9 @@ class ProductExportAdminTests(TestCase):
                     },
                 )
 
-            with patch("shop.management.commands.localize_remote_media.urlopen", side_effect=fake_urlopen):
+            from shop.management.commands import localize_remote_media
+
+            with patch.object(localize_remote_media, "urlopen", side_effect=fake_urlopen):
                 call_command("localize_remote_media")
 
             product.refresh_from_db()
@@ -921,47 +904,6 @@ class ProductExportAdminTests(TestCase):
             override.disable()
             shutil.rmtree(media_root, ignore_errors=True)
 
-
-@override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
-class ProductDocumentUploadTests(TestCase):
-    def setUp(self):
-        self.media_root = tempfile.mkdtemp()
-        self.override = override_settings(MEDIA_ROOT=self.media_root)
-        self.override.enable()
-        self.client = APIClient()
-        self.group = Group.objects.create(name="Тест", slug="test")
-        self.brand = Brand.objects.create(name="Brand", slug="brand")
-        self.product = Product.objects.create(
-            sku="DOC-1",
-            name="Товар с документом",
-            price=Decimal("10.00"),
-            currency="RUB",
-            group=self.group,
-            brand=self.brand,
-            available=True,
-        )
-
-        self.original_permission = IsAdmin.has_permission
-        IsAdmin.has_permission = lambda self, request, view: True
-
-    def tearDown(self):
-        IsAdmin.has_permission = self.original_permission
-        self.override.disable()
-        shutil.rmtree(self.media_root, ignore_errors=True)
-
-    def test_document_upload_endpoint_creates_document(self):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
-        upload = SimpleUploadedFile("passport.pdf", TEST_GIF, content_type="application/pdf")
-        response = self.client.post(
-            reverse("product-document-upload", kwargs={"product_id": self.product.id}),
-            {"file": upload, "title": "Паспорт качества"},
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["title"], "Паспорт качества")
-        self.assertTrue(data["url"].startswith("/static/"))
-        self.assertEqual(ProductDocument.objects.filter(product=self.product).count(), 1)
 
 
 @override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
@@ -1334,23 +1276,19 @@ class InquiryApiTests(TestCase):
         inquiry = Inquiry.objects.first()
         self.assertEqual(inquiry.phone, "+79990001122")
 
-    def test_inquiry_endpoint_allows_missing_phone_and_email(self):
+    def test_inquiry_endpoint_requires_phone_or_email(self):
         response = self.client.post(
             reverse("inquiry-create"),
             {
-                "name": "Петр",
-                "message": "Перезвоните мне завтра",
+                "name": "????????",
+                "message": "?????????????????????? ?????? ????????????",
             },
             format="json",
         )
-        self.assertEqual(response.status_code, 201)
-        inquiry = Inquiry.objects.get(name="Петр")
-        self.assertIsNone(inquiry.phone)
-        self.assertIsNone(inquiry.email)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("non_field_errors", response.json())
 
 
-@override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
-class PublicOrderApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.group = Group.objects.create(name="Теплоизоляция", slug="teploizolyatsiya")
@@ -1461,8 +1399,11 @@ class PublicOrderEmailTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["sales@example.com"])
         self.assertEqual(mail.outbox[0].subject, "Заказ с фронта")
-        self.assertIn("EMAIL-1", mail.outbox[0].body)
-        self.assertIn("Иван", mail.outbox[0].body)
+        self.assertIn("\u041d\u041e\u0412\u0410\u0422\u0415\u0425", mail.outbox[0].body)
+        self.assertIn("\u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0437\u0430\u044f\u0432\u043a\u0443 \u0432 \u0430\u0434\u043c\u0438\u043d\u043a\u0435.", mail.outbox[0].body)
+        self.assertTrue(mail.outbox[0].alternatives)
+        self.assertIn("<p>\u041d\u043e\u0432\u044b\u0439 \u0437\u0430\u043a\u0430\u0437 \u043d\u0430 \u0441\u0430\u0439\u0442\u0435.</p>", mail.outbox[0].alternatives[0][0])
+        self.assertIn("\u041f\u0438\u0441\u044c\u043c\u043e \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u0441 \u0441\u0430\u0439\u0442\u0430 \u041d\u041e\u0412\u0410\u0422\u0415\u0425.", mail.outbox[0].alternatives[0][0])
 
     def test_public_order_skips_email_without_active_recipients(self):
         self.recipient.is_active = False

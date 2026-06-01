@@ -263,7 +263,7 @@ def _wrap_email_shell(subject: str, notification_type: str, main_html: str, foot
         f"<div style='margin-top:28px; padding-top:18px; border-top:1px solid #eee5d8; font-size:13px; line-height:1.7; color:#6c655d;'>{footer_html}</div>"
         "</td></tr>"
         "<tr><td style='padding:18px 8px 0; font-size:12px; line-height:1.6; color:#7d7468; text-align:center;'>"
-        "Письмо отправлено автоматически с сайта НОВАТЕХ. Жёлтые акценты и светлая композиция повторяют визуальный стиль сайта."
+        "\u041f\u0438\u0441\u044c\u043c\u043e \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u0441 \u0441\u0430\u0439\u0442\u0430 \u041d\u041e\u0412\u0410\u0422\u0415\u0425."
         "</td></tr>"
         "</table>"
         "</td></tr>"
