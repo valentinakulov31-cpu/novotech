@@ -37,6 +37,11 @@ if not SECRET_KEY:
 ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
 
+_admin_url_segment = os.getenv('ADMIN_URL_PATH', 'admin').strip().strip('/')
+if not _admin_url_segment:
+    _admin_url_segment = 'admin'
+ADMIN_URL_PATH = f'{_admin_url_segment}/'
+
 
 # Application definition
 

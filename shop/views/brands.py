@@ -1,22 +1,26 @@
 """
 Brand views
 """
-import os
-from datetime import datetime, timezone as tz
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, CreateAPIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
-from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
-from shop.seo import build_group_seo, build_product_seo, resolve_city
-from shop.models import Brand, Product, Group, transliterate_slug
+from shop.catalog_view_helpers import build_brand_grouped_products_payload, get_brand_by_identifier
+from shop.model_utils import transliterate_slug
+from shop.models import Brand
 from shop.serializers import BrandSerializer, BrandCreateSerializer
 from shop.permissions import IsAdmin
+from shop.view_transport_helpers import (
+    create_instance_from_request,
+    require_uploaded_file,
+    resolve_request_city,
+    update_instance_file_field,
+)
 
 
 @extend_schema(tags=['brands'])
@@ -61,10 +65,7 @@ class BrandCreateView(CreateAPIView):
         responses={200: BrandSerializer}
     )
     def post(self, request):
-        serializer = BrandCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        brand = Brand.objects.create(**serializer.validated_data)
+        brand = create_instance_from_request(BrandCreateSerializer, request)
         return Response(BrandSerializer(brand).data)
 
 
@@ -79,25 +80,12 @@ class BrandUploadMediaView(APIView):
     )
     def post(self, request, brand_id):
         brand = get_object_or_404(Brand, id=brand_id)
-        
-        file = request.FILES.get('file')
-        if not file:
-            return Response({'detail': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Save file
-        os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
-        filename = f"brand_{brand_id}_{int(datetime.now(tz.utc).timestamp())}_{file.name}"
-        storage_path = os.path.join(settings.MEDIA_ROOT, filename)
-        
-        with open(storage_path, 'wb+') as destination:
-            for chunk in file.chunks():
-                destination.write(chunk)
-        
-        # Update brand
-        media_url = f"/static/{filename}"
-        brand.media = media_url
-        brand.save()
-        
+        try:
+            upload = require_uploaded_file(request)
+        except Exception as exc:
+            return Response({"detail": exc.detail.get("file", ["No file provided"])[0]}, status=status.HTTP_400_BAD_REQUEST)
+        update_instance_file_field(brand, upload, f"brand_{brand_id}")
+
         return Response(BrandSerializer(brand).data)
 
 
@@ -116,64 +104,7 @@ class BrandProductsGroupedView(APIView):
         }}
     )
     def get(self, request, brand_identifier):
-        # Resolve brand by ID or slug
-        if brand_identifier.isdigit():
-            brand = get_object_or_404(Brand, id=int(brand_identifier))
-        else:
-            brand = get_object_or_404(Brand, slug=brand_identifier)
-        city = resolve_city(city_slug=request.query_params.get('city_slug'))
-        
-        # Get products with their groups
-        products = Product.objects.filter(brand=brand).select_related('group')
-        
-        # Group by category
-        grouped = {}
-        for product in products:
-            if product.group:
-                category_key = product.group.slug
-                if category_key not in grouped:
-                    grouped[category_key] = {
-                        'id': product.group.id,
-                        'slug': product.group.slug,
-                        'name': product.group.name,
-                        'parent_id': product.group.parent_id,
-                        'seo': build_group_seo(product.group, city=city),
-                        'products': []
-                    }
-            else:
-                category_key = 'uncategorized'
-                if category_key not in grouped:
-                    grouped[category_key] = {
-                        'id': None,
-                        'slug': None,
-                        'name': None,
-                        'parent_id': None,
-                        'products': []
-                    }
-            
-            grouped[category_key]['products'].append({
-                'id': product.id,
-                'sku': product.sku,
-                'slug': product.slug,
-                'name': product.name,
-                'price': float(product.price),
-                'currency': product.currency,
-                'description': product.description,
-                'group_id': product.group_id,
-                'brand_id': product.brand_id,
-                'group_slug': product.group.slug if product.group else None,
-                'brand_slug': brand.slug,
-                'media': product.media,
-                'available': product.available,
-                'seo': build_product_seo(product, city=city),
-            })
-        
-        return Response({
-            'brand': {
-                'id': brand.id,
-                'name': brand.name,
-                'slug': brand.slug,
-                'media': brand.media,
-            },
-            'categories': list(grouped.values())
-        })
+        brand = get_brand_by_identifier(brand_identifier)
+        city = resolve_request_city(request)
+
+        return Response(build_brand_grouped_products_payload(brand, city=city))

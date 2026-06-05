@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from shop.filtering import build_catalog_facets_payload, build_catalog_results_payload
+from shop.catalog_request_helpers import build_catalog_facets_from_request, build_catalog_results_from_request
 from shop.serializers import CatalogQuerySerializer
 
 
@@ -18,9 +18,7 @@ class CatalogResultsView(APIView):
         summary="Catalog product results for brand/group/search context",
     )
     def post(self, request):
-        serializer = CatalogQuerySerializer(data=request.data or {})
-        serializer.is_valid(raise_exception=True)
-        return Response(build_catalog_results_payload(serializer.validated_data))
+        return Response(build_catalog_results_from_request(request))
 
 
 @extend_schema(tags=["catalog"])
@@ -34,6 +32,4 @@ class CatalogFacetsView(APIView):
         summary="Catalog facets for brand/group/search context",
     )
     def post(self, request):
-        serializer = CatalogQuerySerializer(data=request.data or {})
-        serializer.is_valid(raise_exception=True)
-        return Response(build_catalog_facets_payload(serializer.validated_data))
+        return Response(build_catalog_facets_from_request(request))

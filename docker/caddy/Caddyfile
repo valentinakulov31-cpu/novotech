@@ -1,0 +1,36 @@
+nvt24.ru {
+    tls /certs/fullchain.pem /certs/privkey.pem
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+    }
+
+    @django_static path /django-static/*
+    handle @django_static {
+        root * /srv/staticfiles
+        uri strip_prefix /django-static
+        file_server
+        header Cache-Control "public, max-age=2592000"
+    }
+
+    @media path /static/*
+    handle @media {
+        root * /srv/media
+        uri strip_prefix /static
+        file_server
+        header Cache-Control "public, max-age=604800"
+    }
+
+    @legacy_admin path /admin*
+    handle @legacy_admin {
+        respond 404
+    }
+
+    @backend path /{$ADMIN_URL_PATH}* /tinymce* /v1*
+    reverse_proxy @backend 127.0.0.1:8000
+
+    reverse_proxy 127.0.0.1:3000
+}
