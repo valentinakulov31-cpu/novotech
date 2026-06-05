@@ -6,9 +6,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
-from django.shortcuts import get_object_or_404
-from django.db.models import Q
 
+from shop.catalog_view_helpers import get_product_by_identifier
 from shop.filtering import (
     apply_catalog_filters,
     build_facets,
@@ -16,23 +15,19 @@ from shop.filtering import (
     parse_bool,
     serialize_product_card,
 )
-from shop.seo import build_product_seo, resolve_city
-from shop.models import Product, ProductMedia, ProductGalleryItem, ProductCharacteristic, ProductCertificate
+from shop.product_presenters import serialize_product_detail_payload
+from shop.models import Product
 from shop.serializers import (
     ProductSerializer,
     ProductCreateSerializer,
-    ProductGalleryItemSerializer,
-    ProductMediaSerializer,
-    ProductCertificateSerializer,
 )
 from shop.permissions import IsAdmin
-
-
-def get_product_by_identifier(product_identifier):
-    lookup = Q(slug=product_identifier)
-    if str(product_identifier).isdigit():
-        lookup |= Q(id=int(product_identifier))
-    return get_object_or_404(Product, lookup)
+from shop.view_transport_helpers import (
+    create_instance_from_request,
+    resolve_city_slug,
+    resolve_request_city,
+    update_instance_from_request,
+)
 
 
 @extend_schema(tags=['products'])
@@ -79,9 +74,8 @@ class ProductFilterView(APIView):
 
     def post(self, request):
         payload = request.data or {}
-        city = resolve_city(
-            city_slug=(payload.get("context") or {}).get("city_slug") or payload.get("city_slug"),
-        )
+        city_slug = (payload.get("context") or {}).get("city_slug") or payload.get("city_slug")
+        city = resolve_city_slug(city_slug) if city_slug else resolve_request_city(request, query_param="city_slug")
         queryset = apply_catalog_filters(
             Product.objects.select_related('group', 'brand').prefetch_related('media_files', 'gallery_items', 'certificates'),
             payload,
@@ -105,19 +99,7 @@ class ProductCreateView(CreateAPIView):
         responses={200: ProductSerializer}
     )
     def post(self, request):
-        serializer = ProductCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        data = serializer.validated_data.copy()
-        group_id = data.pop('group_id', None)
-        brand_id = data.pop('brand_id', None)
-        
-        product = Product.objects.create(
-            group_id=group_id,
-            brand_id=brand_id,
-            **data
-        )
-        
+        product = create_instance_from_request(ProductCreateSerializer, request)
         return Response(ProductSerializer(product).data)
 
 
@@ -142,56 +124,9 @@ class ProductDetailView(APIView):
     )
     def get(self, request, product_identifier):
         product = get_product_by_identifier(product_identifier)
-        city = resolve_city(city_slug=request.query_params.get('city_slug'))
-        
-        # Get media
-        media_list = ProductMediaSerializer(
-            ProductMedia.objects.filter(product=product).order_by('-is_primary', 'sort_order', 'id'),
-            many=True,
-        ).data
-        gallery = ProductGalleryItemSerializer(
-            ProductGalleryItem.objects.filter(product=product).order_by('sort_order', 'id'),
-            many=True,
-        ).data
-        certificates_list = ProductCertificateSerializer(
-            ProductCertificate.objects.filter(product=product).order_by('sort_order', 'id'),
-            many=True,
-        ).data
-        
-        # Get attributes with characteristic details
-        attributes = []
-        product_chars = ProductCharacteristic.objects.filter(
-            product=product
-        ).select_related('characteristic')
-        
-        for pc in product_chars:
-            attributes.append({
-                'id': pc.characteristic.id,
-                'name': pc.characteristic.name,
-                'unit': pc.characteristic.unit,
-                'value': pc.value,
-            })
-        
-        return Response({
-            'id': product.id,
-            'sku': product.sku,
-            'slug': product.slug,
-            'name': product.name,
-            'price': float(product.price),
-            'currency': product.currency,
-            'description': product.description,
-            'assortment_html': product.assortment_html,
-            'characteristics_html': product.characteristics_html,
-            'group_id': product.group_id,
-            'brand_id': product.brand_id,
-            'media': product.media,
-            'available': product.available,
-            'seo': build_product_seo(product, city=city),
-            'media_list': media_list,
-            'gallery': gallery,
-            'certificates_list': certificates_list,
-            'attributes': attributes,
-        })
+        city = resolve_request_city(request)
+
+        return Response(serialize_product_detail_payload(product, city=city))
 
     @extend_schema(
         request=ProductCreateSerializer,
@@ -199,19 +134,7 @@ class ProductDetailView(APIView):
     )
     def put(self, request, product_identifier):
         product = get_product_by_identifier(product_identifier)
-        serializer = ProductCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        data = serializer.validated_data.copy()
-        group_id = data.pop('group_id', None)
-        brand_id = data.pop('brand_id', None)
-
-        for key, value in data.items():
-            setattr(product, key, value)
-
-        product.group_id = group_id
-        product.brand_id = brand_id
-        product.save()
+        update_instance_from_request(product, ProductCreateSerializer, request)
 
         return Response(ProductSerializer(product).data)
 
@@ -228,18 +151,5 @@ class ProductUpdateView(UpdateAPIView):
     )
     def put(self, request, product_identifier):
         product = get_product_by_identifier(product_identifier)
-        serializer = ProductCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        data = serializer.validated_data.copy()
-        group_id = data.pop('group_id', None)
-        brand_id = data.pop('brand_id', None)
-        
-        for key, value in data.items():
-            setattr(product, key, value)
-        
-        product.group_id = group_id
-        product.brand_id = brand_id
-        product.save()
-        
+        update_instance_from_request(product, ProductCreateSerializer, request)
         return Response(ProductSerializer(product).data)

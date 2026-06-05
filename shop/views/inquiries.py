@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from shop.serializers import InquiryCreateSerializer, InquirySerializer
 from shop.services.order_email import send_inquiry_notification
+from shop.view_transport_helpers import create_instance_from_request
 
 
 logger = logging.getLogger(__name__)
@@ -23,9 +24,7 @@ class InquiryCreateView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = InquiryCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        inquiry = serializer.save()
+        inquiry = create_instance_from_request(InquiryCreateSerializer, request)
         try:
             send_inquiry_notification(inquiry)
         except Exception:

@@ -14,3 +14,44 @@ services:
     volumes:
       - /var/www/django_shop/staticfiles:/app/staticfiles
       - /var/www/django_shop/media:/app/media
+  ingress:
+    build:
+      context: .
+      dockerfile: docker/caddy/Dockerfile
+    container_name: novotech_ingress
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    depends_on:
+      - web
+    volumes:
+      - /var/www/django_shop/staticfiles:/srv/staticfiles:ro
+      - /var/www/django_shop/media:/srv/media:ro
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /etc/letsencrypt/live/nvt24.ru/fullchain.pem:/certs/fullchain.pem:ro
+      - /etc/letsencrypt/live/nvt24.ru/privkey.pem:/certs/privkey.pem:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "curl -kfsS --resolve nvt24.ru:443:127.0.0.1 https://nvt24.ru/ >/dev/null && curl -fsSI --resolve nvt24.ru:80:127.0.0.1 http://nvt24.ru/ | grep -q '308'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      autoheal: "true"
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: novotech_autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 30
+      AUTOHEAL_START_PERIOD: 60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  caddy_data:
+  caddy_config:

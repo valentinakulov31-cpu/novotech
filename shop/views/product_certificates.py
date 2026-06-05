@@ -6,10 +6,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from shop.file_utils import save_uploaded_file
 from shop.models import Product, ProductCertificate
 from shop.permissions import IsAdmin
 from shop.serializers import ProductCertificateSerializer
+from shop.services.media_assets import create_product_certificate_from_upload
+from shop.view_transport_helpers import require_uploaded_file
 
 
 @extend_schema(tags=['product-certificates'])
@@ -42,23 +43,15 @@ class ProductCertificateUploadView(APIView):
     )
     def post(self, request, product_id):
         product = get_object_or_404(Product, id=product_id)
-        file = request.FILES.get('file')
-        if not file:
-            return Response({'detail': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            upload = require_uploaded_file(request)
+        except Exception as exc:
+            return Response({"detail": exc.detail.get("file", ["No file provided"])[0]}, status=status.HTTP_400_BAD_REQUEST)
 
-        uploaded = save_uploaded_file(file, f"cert_{product_id}")
-        sort_order = request.data.get('sort_order')
-        if sort_order is None or str(sort_order).strip() == '':
-            last_sort_order = ProductCertificate.objects.filter(product=product).order_by('-sort_order').values_list('sort_order', flat=True).first()
-            sort_order = (last_sort_order + 1) if last_sort_order is not None else 0
-
-        certificate = ProductCertificate.objects.create(
-            product=product,
-            title=(request.data.get('title') or file.name).strip(),
-            storage_path=uploaded['storage_path'],
-            url=uploaded['url'],
-            mime_type=uploaded['mime_type'],
-            size_bytes=uploaded['size_bytes'],
-            sort_order=int(sort_order),
+        certificate = create_product_certificate_from_upload(
+            product,
+            upload,
+            title=request.data.get("title"),
+            sort_order=request.data.get("sort_order"),
         )
         return Response(ProductCertificateSerializer(certificate).data)

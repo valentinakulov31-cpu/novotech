@@ -14,7 +14,15 @@
   .env
 ```
 
-PostgreSQL используется системная, не в Docker. Docker поднимает только Django/Gunicorn.
+PostgreSQL используется системная, не в Docker.
+
+Docker поднимает:
+
+- Django/Gunicorn на `127.0.0.1:8000`;
+- публичный ingress через Caddy на `80/443`;
+- watchdog-контейнер `autoheal`, который перезапускает ingress при провале его собственного healthcheck.
+
+Frontend живет отдельным проектом и должен быть доступен на `127.0.0.1:3000`. Публичный вход на домен держит только контейнер `novotech_ingress`. Путь к Django admin задается через `ADMIN_URL_PATH` в `.env` и в проде не должен оставаться равным `/admin/`.
 
 ## 1. PostgreSQL
 
@@ -60,6 +68,7 @@ ALLOWED_HOSTS=2.26.104.125,127.0.0.1,localhost
 CSRF_TRUSTED_ORIGINS=http://2.26.104.125:8000
 CORS_ALLOWED_ORIGINS=http://2.26.104.125:8000
 CORS_ALLOW_ALL_ORIGINS=True
+ADMIN_URL_PATH=replace-with-secret-admin-path
 
 MEDIA_URL=/static/
 STATIC_URL=/django-static/
@@ -123,7 +132,7 @@ curl -i http://127.0.0.1:8000/v1/docs/
 ```text
 http://2.26.104.125:8000/v1/healthz/
 http://2.26.104.125:8000/v1/docs/
-http://2.26.104.125:8000/admin/
+http://2.26.104.125:8000/$ADMIN_URL_PATH/
 ```
 
 Создать админа:
@@ -159,51 +168,71 @@ docker compose logs -f web
 
 Если Git не используется, заменить файлы проекта вручную и выполнить те же команды `build` и `up`.
 
-## 6. Nginx, когда будет нужен нормальный доступ
+## 6. Публичный ingress через Docker
 
-Пример конфига:
+Публичный вход не должен зависеть от системного `nginx` на хосте. Вместо этого проект поднимает контейнер `novotech_ingress` с Caddy, который:
 
-```nginx
-server {
-    listen 80;
-    server_name 2.26.104.125;
+- слушает `80/443`;
+- использует уже выпущенный TLS-сертификат для `nvt24.ru`;
+- отправляет `/` на frontend `127.0.0.1:3000`;
+- отправляет скрытый admin path `/$ADMIN_URL_PATH/`, а также `/tinymce` и `/v1` на Django `127.0.0.1:8000`;
+- отдает `/django-static/*` и `/static/*` напрямую из смонтированных директорий.
 
-    client_max_body_size 100m;
+Текущий рабочий вариант TLS использует уже выпущенный Let's Encrypt сертификат из `/etc/letsencrypt/live/nvt24.ru/`, а Caddy читает его в контейнере. Старый `/admin/` снаружи должен отвечать `404`.
 
-    location /django-static/ {
-        alias /var/www/django_shop/staticfiles/;
-        expires 30d;
-        add_header Cache-Control "public";
-    }
-
-    location /static/ {
-        alias /var/www/django_shop/media/;
-        expires 7d;
-        add_header Cache-Control "public";
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-После появления домена и HTTPS в `.env` вернуть:
+После появления домена и HTTPS в `.env` должны быть такие настройки:
 
 ```env
 DEBUG=False
 ALLOWED_HOSTS=example.com,www.example.com,127.0.0.1,localhost
 CSRF_TRUSTED_ORIGINS=https://example.com,https://www.example.com
 CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com
+ADMIN_URL_PATH=replace-with-secret-admin-path
 CORS_ALLOW_ALL_ORIGINS=False
 SECURE_SSL_REDIRECT=True
 SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
 SECURE_HSTS_SECONDS=31536000
+```
+
+### Отключение системного `nginx`
+
+Если раньше домен обслуживал host-level `nginx`, его нужно убрать из цепочки, чтобы владелец `80/443` был один:
+
+```bash
+sudo systemctl stop nginx
+sudo systemctl disable nginx
+```
+
+### Запуск ingress
+
+```bash
+cd /root/project_shop/novotech
+docker compose build ingress
+docker compose up -d ingress autoheal
+```
+
+### Автопродление сертификата
+
+`certbot.timer` на хосте должен оставаться включенным, но renewal нужно делать не через `nginx`-plugin, а через `standalone` с hook-скриптами:
+
+- `docker/caddy/hooks/pre-renew.sh` освобождает `80/443`, останавливая только `novotech_ingress`;
+- `docker/caddy/hooks/post-renew.sh` поднимает ingress обратно после challenge.
+
+После смены схемы обновления сертификатов обязательно проверить:
+
+```bash
+certbot renew --dry-run
+```
+
+Проверить:
+
+```bash
+docker compose ps
+docker compose logs --tail=100 ingress
+curl -k -I --resolve nvt24.ru:443:127.0.0.1 https://nvt24.ru/
+curl -I -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/v1/healthz/
+ss -ltnp | grep -E ':80|:443|:3000|:8000'
 ```
 
 ## 7. Импорт XLSX и файлы
@@ -223,6 +252,14 @@ SECURE_HSTS_SECONDS=31536000
 ```bash
 docker compose ps
 docker compose logs --tail=100 web
+docker compose logs --tail=100 ingress
 docker compose exec web python manage.py check
 curl -i http://127.0.0.1:8000/v1/healthz/
 ```
+
+Как отличить тип падения:
+
+- нет `80/443`, но `3000` и `8000` живы: проблема в ingress;
+- `8000` не отвечает: проблема в backend;
+- `3000` не отвечает: проблема во frontend;
+- `ingress` в статусе `unhealthy`: `autoheal` должен перезапустить именно публичный ingress, не трогая backend и frontend.

@@ -9,9 +9,11 @@ from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from django.shortcuts import get_object_or_404
 
-from shop.models import Characteristic, ProductCharacteristic, Product
+from shop.models import Characteristic, Product
 from shop.serializers import CharacteristicSerializer, ProductCharacteristicCreateSerializer, ProductCharacteristicSerializer
 from shop.permissions import IsAdmin
+from shop.product_attribute_helpers import create_product_attribute_value, serialize_product_attributes
+from shop.view_transport_helpers import validate_request_data
 
 
 @extend_schema(tags=['attributes'])
@@ -40,20 +42,7 @@ class ProductAttributesView(APIView):
         responses={200: ProductCharacteristicSerializer(many=True)}
     )
     def get(self, request, product_id):
-        product_chars = ProductCharacteristic.objects.filter(
-            product_id=product_id
-        ).select_related('characteristic')
-        
-        result = []
-        for pc in product_chars:
-            result.append({
-                'attribute_id': pc.characteristic.id,
-                'name': pc.characteristic.name,
-                'unit': pc.characteristic.unit,
-                'value': pc.value,
-            })
-        
-        return Response(result)
+        return Response(serialize_product_attributes(product_id))
 
 
 @extend_schema(tags=['attributes'])
@@ -67,18 +56,12 @@ class ProductAttributeCreateView(APIView):
     )
     def post(self, request, product_id):
         product = get_object_or_404(Product, id=product_id)
-        serializer = ProductCharacteristicCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        characteristic = get_object_or_404(
-            Characteristic,
-            id=serializer.validated_data['attribute_id'],
-            group=product.group,
-        )
-        
-        pc = ProductCharacteristic.objects.create(
-            product=product,
-            characteristic=characteristic,
-            value=serializer.validated_data.get('value_text')
+        payload = validate_request_data(ProductCharacteristicCreateSerializer, request)
+
+        pc = create_product_attribute_value(
+            product,
+            attribute_id=payload["attribute_id"],
+            value=payload.get("value_text"),
         )
         
         return Response({

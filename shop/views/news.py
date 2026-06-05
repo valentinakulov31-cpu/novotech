@@ -11,6 +11,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from shop.models import News, PUBLISH_STATUS_PUBLISHED
 from shop.serializers import NewsSerializer, NewsCreateSerializer
 from shop.permissions import IsAdmin
+from shop.view_transport_helpers import create_instance_from_request
 
 
 @extend_schema(tags=['news'])
@@ -50,15 +51,5 @@ class NewsCreateView(CreateAPIView):
         responses={200: NewsSerializer}
     )
     def post(self, request):
-        serializer = NewsCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        payload = serializer.validated_data
-        if payload.get('status') == PUBLISH_STATUS_PUBLISHED and not payload.get('published_at'):
-            from django.utils import timezone
-            payload['published_at'] = timezone.now()
-        if request.user.is_authenticated:
-            payload['updated_by'] = request.user
-
-        news = News.objects.create(**payload)
+        news = create_instance_from_request(NewsCreateSerializer, request, context={"request": request})
         return Response(NewsSerializer(news).data)

@@ -6,8 +6,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 
-from shop.filtering import apply_catalog_filters, build_facets, build_filter_payload_from_query_params
-from shop.models import Product
+from shop.catalog_request_helpers import build_filter_facets_from_query_params
 
 
 @extend_schema(tags=['filters'])
@@ -27,13 +26,7 @@ class GroupFiltersView(APIView):
         responses={200: {'type': 'object'}}
     )
     def get(self, request, group_id):
-        payload = build_filter_payload_from_query_params(request.query_params)
-        payload['group_id'] = group_id
-        queryset = apply_catalog_filters(Product.objects.select_related('group', 'brand'), payload)
-        facets = build_facets(queryset)
-        facets['scope'] = {'group_id': group_id}
-        facets['count'] = queryset.count()
-        return Response(facets)
+        return Response(build_filter_facets_from_query_params(request.query_params, group_id=group_id))
 
 
 @extend_schema(tags=['filters'])
@@ -54,9 +47,4 @@ class GlobalFiltersView(APIView):
         responses={200: {'type': 'object'}}
     )
     def get(self, request):
-        payload = build_filter_payload_from_query_params(request.query_params)
-        queryset = apply_catalog_filters(Product.objects.select_related('group', 'brand'), payload)
-        facets = build_facets(queryset)
-        facets['scope'] = {'group_id': payload.get('group_id')}
-        facets['count'] = queryset.count()
-        return Response(facets)
+        return Response(build_filter_facets_from_query_params(request.query_params))
