@@ -110,6 +110,13 @@ class ProductAdminForm(HtmlTableSanitizerMixin, SeoFieldsAdminFormMixin, AdminMe
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["group"].label = "Категория"
+        self.fields["brand"].label = "Бренд"
+        self.fields["shared_gallery"].label = "Общая галерея"
+        self.fields["shared_gallery"].help_text = (
+            "Выберите общую галерею, если нужно добавить одинаковые изображения "
+            "сразу для группы похожих товаров."
+        )
         self.fields["search_tsv"].label = "Поисковые синонимы"
         self.fields["search_tsv"].help_text = (
             "Синонимы и поисковые подсказки через запятую. "
