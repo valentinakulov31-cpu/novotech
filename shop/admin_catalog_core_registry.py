@@ -1,10 +1,10 @@
 from django.contrib import admin
 
+from shop.admin_catalog_import_export import ProductAdminImportExportMixin
 from shop.admin_forms import BrandAdminForm, GroupAdminForm, ProductAdminForm, ProductCharacteristicAdminForm
 from shop.admin_mixins import MediaPreviewAdminMixin, TabbedFieldsetsAdminMixin
 from shop.admin_support import SEO_FIELD_NAMES
 from shop.models import Brand, Characteristic, City, Group, Product, ProductCharacteristic
-from shop.admin_catalog_import_export import ProductAdminImportExportMixin
 
 
 @admin.register(Brand)
@@ -33,23 +33,29 @@ class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelA
     list_filter = ("parent",)
     readonly_fields = ("media_preview",)
     fieldsets = (
-        ("РћСЃРЅРѕРІРЅРѕРµ", {
-            "classes": ("tabbed-fieldset",),
-            "fields": (
-                "parent",
-                "name",
-                "slug",
-                "search_synonyms",
-                "description",
-                "media",
-                "media_upload",
-                "media_preview",
-            ),
-        }),
-        ("SEO", {
-            "classes": ("tabbed-fieldset",),
-            "fields": SEO_FIELD_NAMES,
-        }),
+        (
+            "Основное",
+            {
+                "classes": ("tabbed-fieldset",),
+                "fields": (
+                    "parent",
+                    "name",
+                    "slug",
+                    "search_synonyms",
+                    "description",
+                    "media",
+                    "media_upload",
+                    "media_preview",
+                ),
+            },
+        ),
+        (
+            "SEO",
+            {
+                "classes": ("tabbed-fieldset",),
+                "fields": SEO_FIELD_NAMES,
+            },
+        ),
     )
 
 

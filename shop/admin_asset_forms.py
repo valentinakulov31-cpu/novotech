@@ -1,7 +1,7 @@
 from django import forms
 
 from shop.admin_form_mixins import UploadedAssetAdminFormMixin
-from shop.models import NewsAttachment, ProductCertificate, ProductGalleryItem, ProductMedia, Sert
+from shop.models import NewsAttachment, ProductCertificate, ProductGalleryItem, ProductMedia, Sert, SharedProductGalleryItem
 
 
 class ProductMediaAdminForm(UploadedAssetAdminFormMixin):
@@ -37,6 +37,19 @@ class ProductGalleryItemAdminForm(UploadedAssetAdminFormMixin):
 
     class Meta:
         model = ProductGalleryItem
+        fields = "__all__"
+
+
+class SharedProductGalleryItemAdminForm(UploadedAssetAdminFormMixin):
+    gallery_upload = forms.FileField(required=False, label="Загрузить файл галереи")
+    upload_field_name = "gallery_upload"
+    upload_folder_name = "shared_product_gallery"
+    generated_optional_fields = ("file_kind",)
+    inferred_kind_field_name = "file_kind"
+    title_field_name = "title"
+
+    class Meta:
+        model = SharedProductGalleryItem
         fields = "__all__"
 
 

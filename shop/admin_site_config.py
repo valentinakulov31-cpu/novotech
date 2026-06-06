@@ -4,7 +4,7 @@ from django.contrib import admin
 ADMIN_SECTION_ORDER = [
     (
         "catalog",
-        "РљР°С‚Р°Р»РѕРі",
+        "Каталог",
         [
             "shop.Product",
             "shop.Group",
@@ -15,9 +15,10 @@ ADMIN_SECTION_ORDER = [
     ),
     (
         "media",
-        "РњРµРґРёР° Рё С„Р°Р№Р»С‹",
+        "Медиа и файлы",
         [
             "shop.MediaLibrary",
+            "shop.SharedProductGallery",
             "shop.ProductMedia",
             "shop.ProductGalleryItem",
             "shop.ProductCertificate",
@@ -27,7 +28,7 @@ ADMIN_SECTION_ORDER = [
     ),
     (
         "content",
-        "РљРѕРЅС‚РµРЅС‚ СЃР°Р№С‚Р°",
+        "Контент сайта",
         [
             "shop.Slider",
             "shop.News",
@@ -39,7 +40,7 @@ ADMIN_SECTION_ORDER = [
     ),
     (
         "orders",
-        "Р—Р°СЏРІРєРё Рё Р·Р°РєР°Р·С‹",
+        "Заявки и заказы",
         [
             "shop.Inquiry",
             "shop.PublicOrder",
@@ -47,7 +48,7 @@ ADMIN_SECTION_ORDER = [
     ),
     (
         "settings",
-        "РќР°СЃС‚СЂРѕР№РєРё Рё РґРѕСЃС‚СѓРї",
+        "Настройки и доступ",
         [
             "shop.OrderEmailSettings",
             "shop.OrderEmailRecipient",
@@ -58,29 +59,30 @@ ADMIN_SECTION_ORDER = [
 ]
 
 ADMIN_MODEL_NAMES = {
-    "shop.Product": "РўРѕРІР°СЂС‹",
-    "shop.Group": "РљР°С‚РµРіРѕСЂРёРё",
-    "shop.Brand": "Р‘СЂРµРЅРґС‹",
-    "shop.Characteristic": "РҐР°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё",
-    "shop.ProductCharacteristic": "Р—РЅР°С‡РµРЅРёСЏ С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРє",
-    "shop.MediaLibrary": "Р‘РёР±Р»РёРѕС‚РµРєР° РјРµРґРёР°",
-    "shop.ProductMedia": "РџСЂРµРІСЊСЋ С‚РѕРІР°СЂРѕРІ",
-    "shop.ProductGalleryItem": "Р“Р°Р»РµСЂРµСЏ С‚РѕРІР°СЂРѕРІ",
-    "shop.ProductCertificate": "РЎРµСЂС‚РёС„РёРєР°С‚С‹ С‚РѕРІР°СЂРѕРІ",
-    "shop.Sert": "РћР±С‰РёРµ СЃРµСЂС‚РёС„РёРєР°С‚С‹",
-    "shop.NewsAttachment": "Р¤Р°Р№Р»С‹ РЅРѕРІРѕСЃС‚РµР№",
-    "shop.Slider": "РЎР»Р°Р№РґРµСЂ",
-    "shop.News": "РќРѕРІРѕСЃС‚Рё",
-    "shop.HtmlContent": "HTML-Р±Р»РѕРєРё",
-    "shop.ContactInfo": "РљРѕРЅС‚Р°РєС‚С‹ РєРѕРјРїР°РЅРёРё",
-    "shop.Agent": "РњРµРЅРµРґР¶РµСЂС‹",
-    "shop.City": "Р“РѕСЂРѕРґР° РґР»СЏ SEO",
-    "shop.Inquiry": "Р—Р°СЏРІРєРё",
-    "shop.PublicOrder": "Р—Р°РєР°Р·С‹",
-    "shop.OrderEmailSettings": "РЁР°Р±Р»РѕРЅ РїРёСЃСЊРјР°",
-    "shop.OrderEmailRecipient": "РџРѕР»СѓС‡Р°С‚РµР»Рё РїРёСЃРµРј",
-    "auth.User": "РџРѕР»СЊР·РѕРІР°С‚РµР»Рё",
-    "auth.Group": "Р“СЂСѓРїРїС‹ РїСЂР°РІ",
+    "shop.Product": "Товары",
+    "shop.Group": "Категории",
+    "shop.Brand": "Бренды",
+    "shop.Characteristic": "Характеристики",
+    "shop.ProductCharacteristic": "Значения характеристик",
+    "shop.MediaLibrary": "Библиотека медиа",
+    "shop.SharedProductGallery": "Общие галереи",
+    "shop.ProductMedia": "Превью товаров",
+    "shop.ProductGalleryItem": "Галерея товаров",
+    "shop.ProductCertificate": "Сертификаты товаров",
+    "shop.Sert": "Общие сертификаты",
+    "shop.NewsAttachment": "Файлы новостей",
+    "shop.Slider": "Слайды",
+    "shop.News": "Новости",
+    "shop.HtmlContent": "Реквизиты компании",
+    "shop.ContactInfo": "Контактная информация",
+    "shop.Agent": "Менеджеры",
+    "shop.City": "SEO-города",
+    "shop.Inquiry": "Заявки",
+    "shop.PublicOrder": "Заказы",
+    "shop.OrderEmailSettings": "Шаблоны писем",
+    "shop.OrderEmailRecipient": "Получатели писем",
+    "auth.User": "Пользователи",
+    "auth.Group": "Группы прав",
 }
 
 
@@ -115,7 +117,7 @@ def grouped_admin_app_list(request, app_label=None):
     if fallback_models:
         grouped_apps.append(
             {
-                "name": "РџСЂРѕС‡РµРµ",
+                "name": "Прочее",
                 "app_label": "other",
                 "app_url": "",
                 "has_module_perms": True,
@@ -127,7 +129,7 @@ def grouped_admin_app_list(request, app_label=None):
 
 
 def configure_admin_site():
-    admin.site.site_header = "Novotech admin"
-    admin.site.site_title = "Novotech admin"
-    admin.site.index_title = "РЈРїСЂР°РІР»РµРЅРёРµ СЃР°Р№С‚РѕРј"
+    admin.site.site_header = "Новатех админка"
+    admin.site.site_title = "Новатех админка"
+    admin.site.index_title = "Управление сайтом"
     admin.site.get_app_list = grouped_admin_app_list

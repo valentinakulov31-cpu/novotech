@@ -25,6 +25,8 @@ class Brand(models.Model):
 
     class Meta:
         db_table = "brands"
+        verbose_name = "Бренд"
+        verbose_name_plural = "Бренды"
 
     def __str__(self):
         return self.name
@@ -47,8 +49,8 @@ class City(models.Model):
     class Meta:
         db_table = "cities"
         ordering = ["sort_order", "name", "id"]
-        verbose_name = "City"
-        verbose_name_plural = "Cities"
+        verbose_name = "Город"
+        verbose_name_plural = "Города"
 
     def __str__(self):
         return self.name
@@ -83,6 +85,8 @@ class Group(models.Model):
 
     class Meta:
         db_table = "groups"
+        verbose_name = "Группа товаров"
+        verbose_name_plural = "Группы товаров"
 
     def __str__(self):
         return self.name
@@ -91,6 +95,23 @@ class Group(models.Model):
         self.search_synonyms, self.search_index = prepare_group_search_fields(self)
         include_update_fields(kwargs, "search_synonyms", "search_index")
         super().save(*args, **kwargs)
+
+
+class SharedProductGallery(models.Model):
+    """Shared gallery that can be attached to many products."""
+
+    name = models.CharField(max_length=255)
+    slug = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = "shared_product_galleries"
+        ordering = ["name", "id"]
+        verbose_name = "Общая галерея"
+        verbose_name_plural = "Общие галереи"
+
+    def __str__(self):
+        return self.name
 
 
 class Product(models.Model):
@@ -106,6 +127,13 @@ class Product(models.Model):
     characteristics_html = models.TextField(null=True, blank=True)
     group = models.ForeignKey(Group, on_delete=models.SET_NULL, null=True, blank=True, related_name="products")
     brand = models.ForeignKey(Brand, on_delete=models.SET_NULL, null=True, blank=True, related_name="products")
+    shared_gallery = models.ForeignKey(
+        SharedProductGallery,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="products",
+    )
     media = models.JSONField(null=True, blank=True)
     available = models.BooleanField(default=True)
     search_tsv = models.TextField("Search synonyms", null=True, blank=True)
@@ -119,6 +147,8 @@ class Product(models.Model):
 
     class Meta:
         db_table = "products"
+        verbose_name = "Товар"
+        verbose_name_plural = "Товары"
 
     def __str__(self):
         return self.name
@@ -162,8 +192,34 @@ class ProductMedia(models.Model):
 class MediaLibrary(ProductMedia):
     class Meta:
         proxy = True
-        verbose_name = "Media library"
-        verbose_name_plural = "Media library"
+        verbose_name = "Библиотека медиа"
+        verbose_name_plural = "Библиотека медиа"
+
+
+class SharedProductGalleryItem(models.Model):
+    """Gallery item that belongs to a shared gallery."""
+
+    gallery = models.ForeignKey(SharedProductGallery, on_delete=models.CASCADE, related_name="items")
+    storage_path = models.CharField(max_length=1024)
+    url = models.CharField(max_length=1024)
+    mime_type = models.CharField(max_length=255)
+    file_kind = models.CharField(max_length=50, default="image")
+    size_bytes = models.IntegerField()
+    sort_order = models.IntegerField(default=0)
+    title = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        db_table = "shared_product_gallery_items"
+        ordering = ["sort_order", "id"]
+        verbose_name = "Элемент общей галереи"
+        verbose_name_plural = "Элементы общей галереи"
+
+    def __str__(self):
+        return f"{self.title or self.gallery.name} ({self.gallery.name})"
+
+    def save(self, *args, **kwargs):
+        assign_sort_order(self, filters={"gallery": self.gallery})
+        super().save(*args, **kwargs)
 
 
 class ProductGalleryItem(models.Model):
@@ -181,6 +237,8 @@ class ProductGalleryItem(models.Model):
     class Meta:
         db_table = "product_gallery_items"
         ordering = ["sort_order", "id"]
+        verbose_name = "Элемент галереи товара"
+        verbose_name_plural = "Галерея товаров"
 
     def __str__(self):
         return f"Gallery item for {self.product.name}"
@@ -204,6 +262,8 @@ class ProductCertificate(models.Model):
     class Meta:
         db_table = "product_certificates"
         ordering = ["sort_order", "id"]
+        verbose_name = "Сертификат товара"
+        verbose_name_plural = "Сертификаты товаров"
 
     def __str__(self):
         return f"{self.title} for {self.product.name}"
@@ -227,6 +287,8 @@ class Characteristic(models.Model):
 
     class Meta:
         db_table = "characteristics"
+        verbose_name = "Характеристика"
+        verbose_name_plural = "Характеристики"
 
     def __str__(self):
         return self.name
@@ -247,6 +309,8 @@ class ProductCharacteristic(models.Model):
 
     class Meta:
         db_table = "product_characteristics"
+        verbose_name = "Значение характеристики товара"
+        verbose_name_plural = "Значения характеристик товаров"
 
     def __str__(self):
         return f"{self.product.name} - {self.characteristic.name}"

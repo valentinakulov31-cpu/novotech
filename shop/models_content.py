@@ -27,7 +27,8 @@ class News(models.Model):
 
     class Meta:
         db_table = "news"
-        verbose_name_plural = "News"
+        verbose_name = "Новость"
+        verbose_name_plural = "Новости"
         ordering = ["-published_at", "-updated_at", "-id"]
 
     def __str__(self):
@@ -56,6 +57,8 @@ class NewsAttachment(models.Model):
     class Meta:
         db_table = "news_attachments"
         ordering = ["sort_order", "id"]
+        verbose_name = "Файл новости"
+        verbose_name_plural = "Файлы новостей"
 
     def __str__(self):
         return f"{self.title} for {self.news.title}"
@@ -88,6 +91,8 @@ class Sert(models.Model):
     class Meta:
         db_table = "serts"
         ordering = ["sort_order", "id"]
+        verbose_name = "Общий сертификат"
+        verbose_name_plural = "Общие сертификаты"
 
     def __str__(self):
         return self.title
@@ -123,6 +128,8 @@ class Slider(models.Model):
     class Meta:
         db_table = "sliders"
         ordering = ["sort_order", "id"]
+        verbose_name = "Слайд"
+        verbose_name_plural = "Слайды"
 
     def __str__(self):
         return self.title
@@ -149,6 +156,8 @@ class Inquiry(models.Model):
     class Meta:
         db_table = "inquiries"
         ordering = ["-created_at", "-id"]
+        verbose_name = "Заявка"
+        verbose_name_plural = "Заявки"
 
     def __str__(self):
         return f"{self.name} ({self.phone})"
@@ -157,7 +166,7 @@ class Inquiry(models.Model):
 class HtmlContent(models.Model):
     """Editable HTML blocks for the website."""
 
-    title = models.CharField(max_length=255, default="Main HTML content")
+    title = models.CharField(max_length=255, default="Реквизиты компании")
     html_first = models.TextField()
     html_second = models.TextField()
     status = models.CharField(max_length=20, choices=PUBLISH_STATUS_CHOICES, default=PUBLISH_STATUS_DRAFT)
@@ -174,6 +183,8 @@ class HtmlContent(models.Model):
     class Meta:
         db_table = "html_content"
         ordering = ["-updated_at", "-id"]
+        verbose_name = "Реквизиты компании"
+        verbose_name_plural = "Реквизиты компании"
 
     def __str__(self):
         return self.title
@@ -210,8 +221,8 @@ class ContactInfo(models.Model):
     class Meta:
         db_table = "contact_info"
         ordering = ["-updated_at", "-id"]
-        verbose_name = "Contact info"
-        verbose_name_plural = "Contact info"
+        verbose_name = "Контактная информация"
+        verbose_name_plural = "Контактная информация"
 
     def __str__(self):
         return self.title
@@ -243,8 +254,8 @@ class Agent(models.Model):
     class Meta:
         db_table = "agents"
         ordering = ["sort_order", "id"]
-        verbose_name = "Agent"
-        verbose_name_plural = "Agents"
+        verbose_name = "Менеджер"
+        verbose_name_plural = "Менеджеры"
 
     def __str__(self):
         return self.full_name
