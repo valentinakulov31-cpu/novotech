@@ -10,6 +10,7 @@ from shop.models import (
     ProductCharacteristic,
     ProductGalleryItem,
     ProductMedia,
+    SharedProductGalleryItem,
 )
 from shop.seo import build_group_seo, build_product_seo
 from shop.serializers_catalog_shared import SeoContextSerializerMixin
@@ -49,6 +50,12 @@ class ProductGalleryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductGalleryItem
         fields = ["id", "product_id", "title", "url", "mime_type", "file_kind", "size_bytes", "sort_order"]
+
+
+class SharedProductGalleryItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SharedProductGalleryItem
+        fields = ["id", "title", "url", "mime_type", "file_kind", "size_bytes", "sort_order"]
 
 
 class ProductCertificateSerializer(serializers.ModelSerializer):
@@ -91,7 +98,11 @@ class ProductSerializer(SeoContextSerializerMixin, serializers.ModelSerializer):
         return ProductMediaSerializer(obj.media_files.all(), many=True).data
 
     def get_gallery(self, obj):
-        return ProductGalleryItemSerializer(obj.gallery_items.all(), many=True).data
+        product_items = ProductGalleryItemSerializer(obj.gallery_items.all(), many=True).data
+        shared_items = []
+        if obj.shared_gallery_id:
+            shared_items = SharedProductGalleryItemSerializer(obj.shared_gallery.items.all(), many=True).data
+        return [*product_items, *shared_items]
 
     def get_certificates_list(self, obj):
         return ProductCertificateSerializer(obj.certificates.all(), many=True).data

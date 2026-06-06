@@ -3,6 +3,7 @@ from shop.admin_asset_forms import (
     ProductCertificateAdminForm,
     ProductGalleryItemAdminForm,
     ProductMediaAdminForm,
+    SharedProductGalleryItemAdminForm,
     SertAdminForm,
 )
 from shop.admin_catalog_forms import (

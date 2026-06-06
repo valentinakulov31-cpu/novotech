@@ -6,8 +6,9 @@ from shop.admin_forms import (
     ProductCertificateAdminForm,
     ProductGalleryItemAdminForm,
     ProductMediaAdminForm,
+    SharedProductGalleryItemAdminForm,
 )
-from shop.models import NewsAttachment, ProductCertificate, ProductGalleryItem, ProductMedia, PublicOrderItem
+from shop.models import NewsAttachment, ProductCertificate, ProductGalleryItem, ProductMedia, PublicOrderItem, SharedProductGalleryItem
 
 
 class ProductMediaInlineForm(ProductMediaAdminForm):
@@ -33,11 +34,11 @@ class ProductMediaInline(admin.TabularInline):
     readonly_fields = ("preview", "media_kind", "mime_type", "size_bytes")
     ordering = ("-is_primary", "sort_order", "id")
 
-    @admin.display(description="Preview")
+    @admin.display(description="Превью")
     def preview(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">open</a><br><img src="{0}" style="max-height:100px;max-width:140px;" />', obj.url)
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">открыть</a><br><img src="{0}" style="max-height:100px;max-width:140px;" />', obj.url)
 
 
 class ProductCertificateInline(admin.TabularInline):
@@ -55,11 +56,11 @@ class ProductCertificateInline(admin.TabularInline):
     readonly_fields = ("document_link", "mime_type", "size_bytes")
     ordering = ("sort_order", "id")
 
-    @admin.display(description="Certificate")
+    @admin.display(description="Сертификат")
     def document_link(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
 
 
 class ProductGalleryItemInline(admin.TabularInline):
@@ -78,11 +79,34 @@ class ProductGalleryItemInline(admin.TabularInline):
     readonly_fields = ("file_kind", "document_link", "mime_type", "size_bytes")
     ordering = ("sort_order", "id")
 
-    @admin.display(description="Gallery file")
+    @admin.display(description="Файл галереи")
     def document_link(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
+
+
+class SharedProductGalleryItemInline(admin.TabularInline):
+    model = SharedProductGalleryItem
+    form = SharedProductGalleryItemAdminForm
+    extra = 1
+    fields = (
+        "gallery_upload",
+        "title",
+        "file_kind",
+        "document_link",
+        "mime_type",
+        "size_bytes",
+        "sort_order",
+    )
+    readonly_fields = ("file_kind", "document_link", "mime_type", "size_bytes")
+    ordering = ("sort_order", "id")
+
+    @admin.display(description="Файл общей галереи")
+    def document_link(self, obj):
+        if not obj or not obj.url:
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
 
 
 class NewsAttachmentInline(admin.TabularInline):
@@ -100,11 +124,11 @@ class NewsAttachmentInline(admin.TabularInline):
     readonly_fields = ("document_link", "mime_type", "size_bytes")
     ordering = ("sort_order", "id")
 
-    @admin.display(description="Attachment")
+    @admin.display(description="Вложение")
     def document_link(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
 
 
 class PublicOrderItemInline(admin.TabularInline):

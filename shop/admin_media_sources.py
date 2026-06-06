@@ -9,6 +9,7 @@ from shop.models import (
     ProductCertificate,
     ProductGalleryItem,
     ProductMedia,
+    SharedProductGalleryItem,
     Sert,
     Slider,
 )
@@ -16,13 +17,13 @@ from shop.models import (
 
 def iter_media_library_source_entries():
     for brand in Brand.objects.exclude(media__isnull=True).exclude(media=""):
-        yield {"url": brand.media, "title": brand.name, "usage_label": "Brand image", "source_obj": brand, "kind": "image"}
+        yield {"url": brand.media, "title": brand.name, "usage_label": "Изображение бренда", "source_obj": brand, "kind": "image"}
 
     for group in Group.objects.exclude(media__isnull=True).exclude(media=""):
-        yield {"url": group.media, "title": group.name, "usage_label": "Group image", "source_obj": group, "kind": "image"}
+        yield {"url": group.media, "title": group.name, "usage_label": "Изображение группы", "source_obj": group, "kind": "image"}
 
     for slider in Slider.objects.exclude(image__isnull=True).exclude(image=""):
-        yield {"url": slider.image, "title": slider.title, "usage_label": "Slider image", "source_obj": slider, "kind": "image"}
+        yield {"url": slider.image, "title": slider.title, "usage_label": "Изображение слайда", "source_obj": slider, "kind": "image"}
 
     for news in News.objects.exclude(media__isnull=True).exclude(media=""):
         for item in iter_json_media_items(news.media):
@@ -30,7 +31,7 @@ def iter_media_library_source_entries():
                 "url": item["url"],
                 "storage_path": item["storage_path"],
                 "title": item["title"] or news.title,
-                "usage_label": "News media field",
+                "usage_label": "Медиа в поле новости",
                 "source_obj": news,
                 "kind": "image",
             }
@@ -41,7 +42,7 @@ def iter_media_library_source_entries():
                 "url": item["url"],
                 "storage_path": item["storage_path"],
                 "title": item["title"] or product.name,
-                "usage_label": "Product media field",
+                "usage_label": "Медиа в поле товара",
                 "source_obj": product,
                 "kind": "image",
             }
@@ -53,7 +54,7 @@ def iter_media_library_source_entries():
             "title": media.alt_text or media.product.name,
             "mime_type": media.mime_type,
             "size_bytes": media.size_bytes,
-            "usage_label": "Product media",
+            "usage_label": "Основное медиа товара",
             "source_obj": media,
             "kind": media.media_kind,
         }
@@ -65,7 +66,19 @@ def iter_media_library_source_entries():
             "title": gallery_item.title or gallery_item.product.name,
             "mime_type": gallery_item.mime_type,
             "size_bytes": gallery_item.size_bytes,
-            "usage_label": "Product gallery",
+            "usage_label": "Галерея товара",
+            "source_obj": gallery_item,
+            "kind": gallery_item.file_kind,
+        }
+
+    for gallery_item in SharedProductGalleryItem.objects.all():
+        yield {
+            "url": gallery_item.url,
+            "storage_path": gallery_item.storage_path,
+            "title": gallery_item.title or gallery_item.gallery.name,
+            "mime_type": gallery_item.mime_type,
+            "size_bytes": gallery_item.size_bytes,
+            "usage_label": "Общая галерея товаров",
             "source_obj": gallery_item,
             "kind": gallery_item.file_kind,
         }
@@ -77,7 +90,7 @@ def iter_media_library_source_entries():
             "title": certificate.title or certificate.product.name,
             "mime_type": certificate.mime_type,
             "size_bytes": certificate.size_bytes,
-            "usage_label": "Product certificate",
+            "usage_label": "Сертификат товара",
             "source_obj": certificate,
             "kind": "document",
         }
@@ -89,7 +102,7 @@ def iter_media_library_source_entries():
             "title": attachment.title or attachment.news.title,
             "mime_type": attachment.mime_type,
             "size_bytes": attachment.size_bytes,
-            "usage_label": "News attachment",
+            "usage_label": "Вложение новости",
             "source_obj": attachment,
             "kind": infer_file_kind(guess_media_mime_type(attachment.url, attachment.mime_type)),
         }
@@ -101,7 +114,7 @@ def iter_media_library_source_entries():
             "title": sert.title,
             "mime_type": sert.mime_type,
             "size_bytes": sert.size_bytes,
-            "usage_label": "Sert file",
+            "usage_label": "Общий сертификат",
             "source_obj": sert,
             "kind": infer_file_kind(guess_media_mime_type(sert.url, sert.mime_type)),
         }

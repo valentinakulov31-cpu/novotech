@@ -34,6 +34,34 @@ def serialize_public_product_summary(product: Product, city=None, *, group_slug=
 
 
 def serialize_product_detail_payload(product: Product, city=None) -> dict:
+    gallery_items = [
+        {
+            "id": item.id,
+            "product_id": item.product_id,
+            "title": item.title,
+            "url": item.url,
+            "mime_type": item.mime_type,
+            "file_kind": item.file_kind,
+            "size_bytes": item.size_bytes,
+            "sort_order": item.sort_order,
+        }
+        for item in product.gallery_items.all().order_by("sort_order", "id")
+    ]
+    if product.shared_gallery_id:
+        gallery_items.extend(
+            {
+                "id": item.id,
+                "shared_gallery_id": item.gallery_id,
+                "title": item.title,
+                "url": item.url,
+                "mime_type": item.mime_type,
+                "file_kind": item.file_kind,
+                "size_bytes": item.size_bytes,
+                "sort_order": item.sort_order,
+            }
+            for item in product.shared_gallery.items.all().order_by("sort_order", "id")
+        )
+
     return {
         **serialize_public_product_summary(product, city=city),
         "assortment_html": product.assortment_html,
@@ -52,19 +80,7 @@ def serialize_product_detail_payload(product: Product, city=None) -> dict:
             }
             for item in product.media_files.all().order_by("-is_primary", "sort_order", "id")
         ],
-        "gallery": [
-            {
-                "id": item.id,
-                "product_id": item.product_id,
-                "title": item.title,
-                "url": item.url,
-                "mime_type": item.mime_type,
-                "file_kind": item.file_kind,
-                "size_bytes": item.size_bytes,
-                "sort_order": item.sort_order,
-            }
-            for item in product.gallery_items.all().order_by("sort_order", "id")
-        ],
+        "gallery": gallery_items,
         "certificates_list": [
             {
                 "id": item.id,

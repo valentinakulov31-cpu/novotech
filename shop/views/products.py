@@ -55,7 +55,12 @@ class ProductListView(ListAPIView):
     def get_queryset(self):
         payload = build_filter_payload_from_query_params(self.request.query_params)
         queryset = apply_catalog_filters(
-            Product.objects.select_related('group', 'brand').prefetch_related('media_files', 'gallery_items', 'certificates'),
+            Product.objects.select_related('group', 'brand', 'shared_gallery').prefetch_related(
+                'media_files',
+                'gallery_items',
+                'certificates',
+                'shared_gallery__items',
+            ),
             payload,
         )
         if parse_bool(self.request.query_params.get('popular')) is True:
@@ -77,7 +82,12 @@ class ProductFilterView(APIView):
         city_slug = (payload.get("context") or {}).get("city_slug") or payload.get("city_slug")
         city = resolve_city_slug(city_slug) if city_slug else resolve_request_city(request, query_param="city_slug")
         queryset = apply_catalog_filters(
-            Product.objects.select_related('group', 'brand').prefetch_related('media_files', 'gallery_items', 'certificates'),
+            Product.objects.select_related('group', 'brand', 'shared_gallery').prefetch_related(
+                'media_files',
+                'gallery_items',
+                'certificates',
+                'shared_gallery__items',
+            ),
             payload,
         )
         products = [serialize_product_card(product, city=city) for product in queryset.order_by('name')]

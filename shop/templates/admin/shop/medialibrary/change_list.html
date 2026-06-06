@@ -2,7 +2,7 @@
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
-  <a href="{% url 'admin:index' %}">Home</a>
+  <a href="{% url 'admin:index' %}">Главная</a>
   &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
   &rsaquo; {{ title }}
 </div>
@@ -18,20 +18,24 @@
           type="text"
           name="q"
           value="{{ search_query }}"
-          placeholder="Search by title, owner, source, url, path"
+          placeholder="Поиск по названию, владельцу, url или пути"
           style="min-width: 340px; padding: 0.5rem 0.75rem;"
         />
-        <button type="submit" class="button">Search</button>
+        <button type="submit" class="button">Найти</button>
         <select name="usage" style="padding: 0.5rem 0.75rem;">
-          <option value="">All usages</option>
+          <option value="">Все использования</option>
           {% for option in usage_options %}
             <option value="{{ option }}" {% if usage_filter == option %}selected{% endif %}>{{ option }}</option>
           {% endfor %}
         </select>
         {% if search_query or usage_filter %}
-          <a href="{% url 'admin:shop_medialibrary_changelist' %}" class="button">Reset</a>
+          <a href="{% url 'admin:shop_medialibrary_changelist' %}" class="button">Сбросить</a>
         {% endif %}
-        <span>{{ asset_count }} asset{{ asset_count|pluralize }}</span>
+        <span>Найдено файлов: {{ asset_count }}</span>
+      </form>
+      <form method="post" action="{% url 'admin:shop_medialibrary_delete_unused' %}" onsubmit="return confirm('Удалить все неиспользуемые локальные файлы из admin_uploads?');" style="margin: 0 0 1rem;">
+        {% csrf_token %}
+        <button type="submit" class="deletelink" style="background: none; border: none; padding: 0; cursor: pointer;">Удалить все неиспользуемые изображения и файлы ({{ unused_asset_count }})</button>
       </form>
     </div>
 
@@ -39,12 +43,12 @@
       <table id="result_list">
         <thead>
           <tr>
-            <th>Preview</th>
-            <th>Asset</th>
-            <th>Type</th>
-            <th>Usage</th>
-            <th>File</th>
-            <th>Action</th>
+            <th>Превью</th>
+            <th>Файл</th>
+            <th>Тип</th>
+            <th>Использование</th>
+            <th>Путь</th>
+            <th>Действие</th>
           </tr>
         </thead>
         <tbody>
@@ -56,52 +60,56 @@
                     <img src="{{ asset.preview_url }}" alt="{{ asset.title }}" style="max-width: 140px; max-height: 100px;" />
                   </a>
                 {% elif asset.url %}
-                  <a href="{{ asset.url }}" target="_blank">open</a>
+                  <a href="{{ asset.url }}" target="_blank">Открыть</a>
                 {% else %}
-                  No preview
+                  Нет превью
                 {% endif %}
               </td>
               <td style="min-width: 220px;">
                 <strong>{{ asset.title }}</strong><br />
                 {% if asset.mime_type %}<span>{{ asset.mime_type }}</span><br />{% endif %}
-                {% if asset.size_bytes %}<span>{{ asset.size_bytes }} bytes</span><br />{% endif %}
-                <span>{% if asset.is_local %}local{% else %}remote{% endif %}{% if asset.is_local %} / {% if asset.file_exists %}exists{% else %}missing{% endif %}{% endif %}</span>
+                {% if asset.size_bytes %}<span>{{ asset.size_bytes }} байт</span><br />{% endif %}
+                <span>{% if asset.is_local %}локальный{% else %}внешний{% endif %}{% if asset.is_local %} / {% if asset.file_exists %}существует{% else %}отсутствует{% endif %}{% endif %}</span>
               </td>
               <td style="width: 120px;">{{ asset.kind }}</td>
               <td>
-                <strong>{{ asset.usage_count }} usage{{ asset.usage_count|pluralize }}</strong>
-                <ul style="margin: 0.5rem 0 0 1.2rem;">
-                  {% for usage in asset.usages %}
-                    <li>
-                      {{ usage.source_label }}:
-                      {% if usage.owner_admin_url %}
-                        <a href="{{ usage.owner_admin_url }}">{{ usage.owner_label }}</a>
-                      {% else %}
-                        {{ usage.owner_label }}
-                      {% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
+                <strong>Использований: {{ asset.usage_count }}</strong>
+                {% if asset.usages %}
+                  <ul style="margin: 0.5rem 0 0 1.2rem;">
+                    {% for usage in asset.usages %}
+                      <li>
+                        {{ usage.source_label }}:
+                        {% if usage.owner_admin_url %}
+                          <a href="{{ usage.owner_admin_url }}">{{ usage.owner_label }}</a>
+                        {% else %}
+                          {{ usage.owner_label }}
+                        {% endif %}
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <div style="margin-top:0.5rem; color:#666;">Не используется</div>
+                {% endif %}
               </td>
               <td style="min-width: 260px;">
                 {% if asset.url %}<div><a href="{{ asset.url }}" target="_blank">{{ asset.url }}</a></div>{% endif %}
                 {% if asset.storage_path %}<div><code>{{ asset.storage_path }}</code></div>{% endif %}
               </td>
-              <td style="width: 140px;">
-                <form method="post" action="{% url 'admin:shop_medialibrary_delete_asset' %}" onsubmit="return confirm('Delete this media from the file system and all dependencies?');">
+              <td style="width: 160px;">
+                <form method="post" action="{% url 'admin:shop_medialibrary_delete_asset' %}" onsubmit="return confirm('Удалить этот файл и все его связи в системе?');">
                   {% csrf_token %}
                   <input type="hidden" name="asset_url" value="{{ asset.url|default:'' }}" />
                   <input type="hidden" name="asset_storage_path" value="{{ asset.storage_path|default:'' }}" />
                   <input type="hidden" name="asset_title" value="{{ asset.title }}" />
                   <input type="hidden" name="q" value="{{ search_query }}" />
                   <input type="hidden" name="usage" value="{{ usage_filter }}" />
-                  <button type="submit" class="deletelink" style="background: none; border: none; padding: 0; cursor: pointer;">Delete everywhere</button>
+                  <button type="submit" class="deletelink" style="background: none; border: none; padding: 0; cursor: pointer;">Удалить везде</button>
                 </form>
               </td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="6">No media assets found.</td>
+              <td colspan="6">Файлы не найдены.</td>
             </tr>
           {% endfor %}
         </tbody>

@@ -23,6 +23,7 @@ from shop.models import (
     ProductCharacteristic,
     ProductGalleryItem,
     ProductMedia,
+    SharedProductGallery,
 )
 from shop.services.media_assets import ensure_single_primary, sync_product_media
 
@@ -43,13 +44,34 @@ PRODUCT_OPTIONAL_IMPORT_FIELDS = (
 )
 
 
+def build_import_issue(
+    level: str,
+    row_number: int | None,
+    sku: str,
+    message: str,
+    *,
+    column: str = "",
+    value=None,
+    code: str = "",
+) -> dict:
+    return {
+        "level": level,
+        "row_number": row_number,
+        "sku": sku,
+        "column": column,
+        "value": "" if value in (None, "") else str(value),
+        "code": code,
+        "message": message,
+    }
+
+
 def parse_bool(value):
     if isinstance(value, bool):
         return value
     normalized = str(value or "").strip().lower()
-    if normalized in {"РґР°", "true", "1", "yes", "y"}:
+    if normalized in {"да", "true", "1", "yes", "y"}:
         return True
-    if normalized in {"РЅРµС‚", "false", "0", "no", "n"}:
+    if normalized in {"нет", "false", "0", "no", "n"}:
         return False
     return bool(normalized)
 
@@ -63,7 +85,7 @@ def parse_decimal(value) -> Decimal:
     try:
         return Decimal(text)
     except InvalidOperation as exc:
-        raise ValidationError(f"Cannot parse decimal value '{value}'") from exc
+        raise ValidationError(f"Не удалось распознать число: {value}") from exc
 
 
 def split_media_urls(value):
@@ -140,11 +162,11 @@ def save_remote_file_url(url: str, folder_name: str) -> dict:
     target_dir = media_root / "admin_uploads" / folder_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    request = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; NovotechMediaImporter/1.0)"})
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; NovatehMediaImporter/1.0)"})
     with urlopen(request, timeout=REMOTE_IMPORT_TIMEOUT_SECONDS) as response:
         content_length = response.headers.get("Content-Length")
         if content_length and int(content_length) > REMOTE_IMPORT_MAX_BYTES:
-            raise ValidationError(f"Remote file is larger than {REMOTE_IMPORT_MAX_BYTES // 1024 // 1024} MB: {url}")
+            raise ValidationError(f"Удалённый файл больше {REMOTE_IMPORT_MAX_BYTES // 1024 // 1024} МБ: {url}")
 
         original_name = filename_from_remote_response(url, response)
         storage_path = target_dir / f"{uuid.uuid4().hex}{Path(original_name).suffix}"
@@ -158,7 +180,7 @@ def save_remote_file_url(url: str, folder_name: str) -> dict:
                 downloaded += len(chunk)
                 if downloaded > REMOTE_IMPORT_MAX_BYTES:
                     storage_path.unlink(missing_ok=True)
-                    raise ValidationError(f"Remote file is larger than {REMOTE_IMPORT_MAX_BYTES // 1024 // 1024} MB: {url}")
+                    raise ValidationError(f"Удалённый файл больше {REMOTE_IMPORT_MAX_BYTES // 1024 // 1024} МБ: {url}")
                 destination.write(chunk)
 
     relative_path = storage_path.relative_to(media_root).as_posix()
@@ -185,8 +207,8 @@ def resolve_import_file_reference(value, folder_name: str):
     if parsed.scheme in {"http", "https"}:
         try:
             return save_remote_file_url(text, folder_name), None
-        except Exception as exc:
-            return None, f"Remote file could not be downloaded: {text}. {exc}"
+        except Exception as exc:  # noqa: BLE001
+            return None, f"не удалось скачать удалённый файл: {text}. {exc}"
 
     if is_probable_url(text):
         mime_type = mimetypes.guess_type(urlparse(text).path)[0] or "application/octet-stream"
@@ -205,7 +227,7 @@ def resolve_import_file_reference(value, folder_name: str):
             "title": Path(urlparse(text).path).name or text,
         }, None
 
-    return None, f"File path or URL was not found: {text}"
+    return None, f"не найден путь или URL к файлу: {text}"
 
 
 def infer_data_type(value) -> str:
@@ -254,6 +276,17 @@ def resolve_brand(raw_value: str):
     return Brand.objects.create(name=value, slug=slug), True
 
 
+def resolve_shared_gallery(raw_value: str):
+    if not raw_value:
+        return None, False
+    value = str(raw_value).strip()
+    slug = transliterate_slug(value)
+    gallery = SharedProductGallery.objects.filter(slug=slug).first() or SharedProductGallery.objects.filter(name=value).first()
+    if gallery:
+        return gallery, False
+    return SharedProductGallery.objects.create(name=value, slug=slug), True
+
+
 def resolve_characteristic(group: Group, header: str, sample_value):
     name = characteristic_header_from_name(header)[len("char_"):].replace("_", " ").strip()
     slug = transliterate_slug(name)
@@ -280,13 +313,23 @@ def resolve_characteristic(group: Group, header: str, sample_value):
     ), True
 
 
-def sync_imported_product_media(product, values, warnings, row_number):
+def sync_imported_product_media(product, values, issues, row_number):
     ProductMedia.objects.filter(product=product).delete()
     created_items = []
     for index, value in enumerate(values):
         uploaded, warning = resolve_import_file_reference(value, "product_media")
         if warning:
-            warnings.append(f"Row {row_number}: media skipped for SKU '{product.sku}'. {warning}")
+            issues.append(
+                build_import_issue(
+                    "warning",
+                    row_number,
+                    product.sku,
+                    f"Медиа пропущено: {warning}",
+                    column="media_urls",
+                    value=value,
+                    code="media_skipped",
+                )
+            )
             continue
         created_items.append(
             ProductMedia.objects.create(
@@ -306,13 +349,23 @@ def sync_imported_product_media(product, values, warnings, row_number):
     return len(created_items)
 
 
-def sync_imported_product_gallery(product, values, title_values, warnings, row_number):
+def sync_imported_product_gallery(product, values, title_values, issues, row_number):
     ProductGalleryItem.objects.filter(product=product).delete()
     created_count = 0
     for index, value in enumerate(values):
         uploaded, warning = resolve_import_file_reference(value, "product_gallery")
         if warning:
-            warnings.append(f"Row {row_number}: gallery file skipped for SKU '{product.sku}'. {warning}")
+            issues.append(
+                build_import_issue(
+                    "warning",
+                    row_number,
+                    product.sku,
+                    f"Файл галереи пропущен: {warning}",
+                    column="gallery_urls",
+                    value=value,
+                    code="gallery_skipped",
+                )
+            )
             continue
         ProductGalleryItem.objects.create(
             product=product,
@@ -328,13 +381,23 @@ def sync_imported_product_gallery(product, values, title_values, warnings, row_n
     return created_count
 
 
-def sync_imported_titled_files(model, product, values, title_values, folder_name, warnings, row_number, warning_label):
+def sync_imported_titled_files(model, product, values, title_values, folder_name, issues, row_number, warning_label):
     model.objects.filter(product=product).delete()
     created_count = 0
     for index, value in enumerate(values):
         uploaded, warning = resolve_import_file_reference(value, folder_name)
         if warning:
-            warnings.append(f"Row {row_number}: {warning_label} skipped for SKU '{product.sku}'. {warning}")
+            issues.append(
+                build_import_issue(
+                    "warning",
+                    row_number,
+                    product.sku,
+                    f"{warning_label.capitalize()} пропущен: {warning}",
+                    column=f"{warning_label}_urls",
+                    value=value,
+                    code=f"{warning_label}_skipped",
+                )
+            )
             continue
         model.objects.create(
             product=product,
@@ -353,7 +416,7 @@ def import_products_from_workbook(workbook_file):
     try:
         from openpyxl import load_workbook
     except ImportError as exc:
-        raise ValidationError("openpyxl is not installed. Add it to the environment before importing XLSX.") from exc
+        raise ValidationError("openpyxl не установлен. Добавьте пакет в окружение перед импортом XLSX.") from exc
 
     workbook = load_workbook(workbook_file, read_only=True, data_only=True)
     worksheet = workbook.active
@@ -361,12 +424,12 @@ def import_products_from_workbook(workbook_file):
     try:
         headers = [str(cell).strip() if cell is not None else "" for cell in next(rows)]
     except StopIteration as exc:
-        raise ValidationError("The XLSX file is empty.") from exc
+        raise ValidationError("XLSX-файл пустой.") from exc
 
     required_headers = {"sku", "name", "price", "currency"}
     missing = sorted(required_headers - set(headers))
     if missing:
-        raise ValidationError(f"Missing required columns: {', '.join(missing)}")
+        raise ValidationError(f"Не хватает обязательных колонок: {', '.join(missing)}")
 
     char_headers = [header for header in headers if header.startswith("char_")]
     counters = {
@@ -374,6 +437,7 @@ def import_products_from_workbook(workbook_file):
         "products_updated": 0,
         "groups_created": 0,
         "brands_created": 0,
+        "shared_galleries_created": 0,
         "characteristics_created": 0,
         "product_characteristics_upserted": 0,
         "media_items_imported": 0,
@@ -381,7 +445,7 @@ def import_products_from_workbook(workbook_file):
         "certificates_imported": 0,
         "rows_skipped": 0,
     }
-    warnings = []
+    issues = []
 
     with transaction.atomic():
         for row_number, row in enumerate(rows, start=2):
@@ -393,16 +457,28 @@ def import_products_from_workbook(workbook_file):
 
             name = str(payload.get("name") or "").strip()
             if not name:
-                warnings.append(f"Row {row_number}: skipped because product name is empty for SKU '{sku}'.")
+                issues.append(
+                    build_import_issue(
+                        "warning",
+                        row_number,
+                        sku,
+                        "Строка пропущена: пустое название товара.",
+                        column="name",
+                        code="empty_name",
+                    )
+                )
                 counters["rows_skipped"] += 1
                 continue
 
             group_name = str(payload.get("group_slug") or "").strip()
             brand_name = str(payload.get("brand_slug") or "").strip()
+            shared_gallery_name = str(payload.get("shared_gallery_slug") or "").strip()
             group, group_created = resolve_group(group_name) if group_name else (None, False)
             brand, brand_created = resolve_brand(brand_name) if brand_name else (None, False)
+            shared_gallery, shared_gallery_created = resolve_shared_gallery(shared_gallery_name) if shared_gallery_name else (None, False)
             counters["groups_created"] += int(group_created)
             counters["brands_created"] += int(brand_created)
+            counters["shared_galleries_created"] += int(shared_gallery_created)
 
             defaults = {
                 "name": name,
@@ -410,6 +486,7 @@ def import_products_from_workbook(workbook_file):
                 "currency": str(payload.get("currency") or "RUB").strip() or "RUB",
                 "group": group,
                 "brand": brand,
+                "shared_gallery": shared_gallery,
                 "available": parse_bool(payload.get("available")),
             }
             for field_name in PRODUCT_OPTIONAL_IMPORT_FIELDS:
@@ -428,7 +505,7 @@ def import_products_from_workbook(workbook_file):
                 counters["media_items_imported"] += sync_imported_product_media(
                     product,
                     split_media_urls(payload.get("media_urls")) or [],
-                    warnings,
+                    issues,
                     row_number,
                 )
             if "gallery_urls" in payload:
@@ -436,7 +513,7 @@ def import_products_from_workbook(workbook_file):
                     product,
                     split_media_urls(payload.get("gallery_urls")) or [],
                     split_title_values(payload.get("gallery_titles")),
-                    warnings,
+                    issues,
                     row_number,
                 )
             if "certificate_urls" in payload:
@@ -446,7 +523,7 @@ def import_products_from_workbook(workbook_file):
                     split_media_urls(payload.get("certificate_urls")) or [],
                     split_title_values(payload.get("certificate_titles")),
                     "product_certificates",
-                    warnings,
+                    issues,
                     row_number,
                     "certificate",
                 )
@@ -454,7 +531,16 @@ def import_products_from_workbook(workbook_file):
             if not group and char_headers:
                 has_characteristics = any(payload.get(header) not in (None, "") for header in char_headers)
                 if has_characteristics:
-                    warnings.append(f"Row {row_number}: characteristics for SKU '{sku}' were skipped because group_slug is empty.")
+                    issues.append(
+                        build_import_issue(
+                            "warning",
+                            row_number,
+                            sku,
+                            "Характеристики пропущены: не указана категория.",
+                            column="group_slug",
+                            code="missing_group_for_characteristics",
+                        )
+                    )
                 continue
 
             for header in char_headers:
@@ -470,12 +556,12 @@ def import_products_from_workbook(workbook_file):
                 )
                 counters["product_characteristics_upserted"] += 1
 
-    return counters, warnings
+    return counters, issues
 
 
 def build_product_export_rows(products_queryset):
     products = list(
-        products_queryset.select_related("group", "brand").prefetch_related(
+        products_queryset.select_related("group", "brand", "shared_gallery").prefetch_related(
             "characteristics__characteristic",
             "media_files",
             "gallery_items",
@@ -508,6 +594,7 @@ def build_product_export_rows(products_queryset):
         "seo_robots",
         "group_slug",
         "brand_slug",
+        "shared_gallery_slug",
         "available",
         "media_urls",
         "gallery_urls",
@@ -523,32 +610,35 @@ def build_product_export_rows(products_queryset):
             for product_characteristic in product.characteristics.all()
         }
         product_media_urls = [item.url for item in product.media_files.all()]
-        rows.append([
-            product.sku,
-            product.slug,
-            product.name,
-            str(product.price),
-            product.currency,
-            product.description or "",
-            product.assortment_html or "",
-            product.characteristics_html or "",
-            product.search_tsv or "",
-            product.seo_title or "",
-            product.seo_h1 or "",
-            product.seo_description or "",
-            product.seo_keywords or "",
-            product.seo_canonical_url or "",
-            product.seo_robots or "",
-            product.group.name if product.group else "",
-            product.brand.name if product.brand else "",
-            "Р”Р°" if product.available else "РќРµС‚",
-            ",".join(product_media_urls or (product.media or [])),
-            ",".join(item.url for item in product.gallery_items.all()),
-            ",".join(item.title or "" for item in product.gallery_items.all()),
-            ",".join(item.url for item in product.certificates.all()),
-            ",".join(item.title or "" for item in product.certificates.all()),
-            *[values_by_slug.get(characteristic_slug, "") or "" for characteristic_slug, _ in ordered_characteristics],
-        ])
+        rows.append(
+            [
+                product.sku,
+                product.slug,
+                product.name,
+                str(product.price),
+                product.currency,
+                product.description or "",
+                product.assortment_html or "",
+                product.characteristics_html or "",
+                product.search_tsv or "",
+                product.seo_title or "",
+                product.seo_h1 or "",
+                product.seo_description or "",
+                product.seo_keywords or "",
+                product.seo_canonical_url or "",
+                product.seo_robots or "",
+                product.group.name if product.group else "",
+                product.brand.name if product.brand else "",
+                product.shared_gallery.slug if product.shared_gallery else "",
+                "Да" if product.available else "Нет",
+                ",".join(product_media_urls or (product.media or [])),
+                ",".join(item.url for item in product.gallery_items.all()),
+                ",".join(item.title or "" for item in product.gallery_items.all()),
+                ",".join(item.url for item in product.certificates.all()),
+                ",".join(item.title or "" for item in product.certificates.all()),
+                *[values_by_slug.get(characteristic_slug, "") or "" for characteristic_slug, _ in ordered_characteristics],
+            ]
+        )
     return headers, rows
 
 
@@ -556,7 +646,7 @@ def workbook_bytes_from_headers_and_rows(headers, rows, title="Products"):
     try:
         from openpyxl import Workbook
     except ImportError as exc:
-        raise ValidationError("openpyxl is not installed. Add it to the environment before exporting XLSX.") from exc
+        raise ValidationError("openpyxl не установлен. Добавьте пакет в окружение перед экспортом XLSX.") from exc
 
     workbook = Workbook()
     worksheet = workbook.active
@@ -564,6 +654,40 @@ def workbook_bytes_from_headers_and_rows(headers, rows, title="Products"):
     worksheet.append(headers)
     for row in rows:
         worksheet.append(row)
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def workbook_bytes_from_import_report(counters, issues):
+    try:
+        from openpyxl import Workbook
+    except ImportError as exc:
+        raise ValidationError("openpyxl не установлен. Добавьте пакет в окружение перед экспортом XLSX.") from exc
+
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Summary"
+    summary.append(["Показатель", "Значение"])
+    for key, value in counters.items():
+        summary.append([key, value])
+
+    details = workbook.create_sheet("Issues")
+    details.append(["Уровень", "Строка", "SKU", "Колонка", "Код", "Значение", "Сообщение"])
+    for issue in issues:
+        details.append(
+            [
+                issue.get("level", ""),
+                issue.get("row_number", ""),
+                issue.get("sku", ""),
+                issue.get("column", ""),
+                issue.get("code", ""),
+                issue.get("value", ""),
+                issue.get("message", ""),
+            ]
+        )
 
     buffer = BytesIO()
     workbook.save(buffer)

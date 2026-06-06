@@ -1,5 +1,7 @@
+import mimetypes
 from pathlib import Path
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 
@@ -19,6 +21,7 @@ from shop.models import (
     ProductCertificate,
     ProductGalleryItem,
     ProductMedia,
+    SharedProductGalleryItem,
     Sert,
     Slider,
 )
@@ -42,6 +45,7 @@ def delete_media_asset(asset_url: str | None, asset_storage_path: str | None) ->
         "deleted_rows": {
             "product_media": 0,
             "product_gallery": 0,
+            "shared_product_gallery": 0,
             "product_certificates": 0,
             "news_attachments": 0,
             "serts": 0,
@@ -71,6 +75,10 @@ def delete_media_asset(asset_url: str | None, asset_storage_path: str | None) ->
         affected_product_ids.update(product_gallery_qs.values_list("product_id", flat=True))
         result["deleted_rows"]["product_gallery"] = product_gallery_qs.count()
         product_gallery_qs.delete()
+
+        shared_gallery_qs = SharedProductGalleryItem.objects.filter(match_q)
+        result["deleted_rows"]["shared_product_gallery"] = shared_gallery_qs.count()
+        shared_gallery_qs.delete()
 
         product_cert_qs = ProductCertificate.objects.filter(match_q)
         affected_product_ids.update(product_cert_qs.values_list("product_id", flat=True))
@@ -147,3 +155,62 @@ def delete_media_asset(asset_url: str | None, asset_storage_path: str | None) ->
 
     result["affected_product_count"] = len(affected_product_ids)
     return result
+
+
+def collect_unused_media_file_entries():
+    media_root = Path(settings.MEDIA_ROOT)
+    uploads_root = media_root / "admin_uploads"
+    if not uploads_root.exists():
+        return []
+
+    referenced_paths = set()
+    for model in (
+        ProductMedia,
+        ProductGalleryItem,
+        SharedProductGalleryItem,
+        ProductCertificate,
+        NewsAttachment,
+        Sert,
+    ):
+        for value in model.objects.exclude(storage_path__in=["", None]).values_list("storage_path", flat=True):
+            referenced_paths.add(str(resolve_media_storage_path(storage_path=value)))
+
+    results = []
+    for file_path in uploads_root.rglob("*"):
+        if not file_path.is_file():
+            continue
+        normalized = str(file_path)
+        if normalized in referenced_paths:
+            continue
+        relative_path = file_path.relative_to(media_root).as_posix()
+        url = f"{settings.MEDIA_URL}{relative_path}"
+        mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        results.append(
+            {
+                "asset_key": f"path::{normalized}",
+                "url": url,
+                "storage_path": normalized,
+                "title": file_path.name,
+                "mime_type": mime_type,
+                "size_bytes": file_path.stat().st_size,
+                "kind": "image" if mime_type.startswith("image/") else "document",
+                "is_local": True,
+                "file_exists": True,
+                "preview_url": url if mime_type.startswith("image/") else None,
+                "usages": [],
+                "usage_count": 0,
+                "search_haystack": [file_path.name, normalized, url, "unused"],
+            }
+        )
+    results.sort(key=lambda item: item["title"])
+    return results
+
+
+def delete_unused_media_files():
+    deleted = 0
+    for asset in collect_unused_media_file_entries():
+        file_path = Path(asset["storage_path"])
+        if file_path.exists() and file_path.is_file():
+            file_path.unlink()
+            deleted += 1
+    return deleted

@@ -32,6 +32,8 @@ from shop.models_catalog import (
     ProductCharacteristic,
     ProductGalleryItem,
     ProductMedia,
+    SharedProductGallery,
+    SharedProductGalleryItem,
 )
 from shop.models_content import Agent, ContactInfo, HtmlContent, Inquiry, News, NewsAttachment, Sert, Slider
 from shop.models_orders import OrderEmailRecipient, OrderEmailSettings, PublicOrder, PublicOrderItem

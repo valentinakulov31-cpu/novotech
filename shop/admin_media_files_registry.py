@@ -8,8 +8,16 @@ from shop.admin_forms import (
     ProductMediaAdminForm,
     SertAdminForm,
 )
+from shop.admin_inlines import SharedProductGalleryItemInline
 from shop.admin_mixins import PublishWorkflowAdminMixin
-from shop.models import NewsAttachment, ProductCertificate, ProductGalleryItem, ProductMedia, Sert
+from shop.models import (
+    NewsAttachment,
+    ProductCertificate,
+    ProductGalleryItem,
+    ProductMedia,
+    Sert,
+    SharedProductGallery,
+)
 from shop.services import media_assets as media_assets_service
 
 
@@ -35,11 +43,11 @@ class ProductMediaAdmin(admin.ModelAdmin):
         "alt_text",
     )
 
-    @admin.display(description="Preview")
+    @admin.display(description="Превью")
     def url_preview(self, obj):
         if not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">open</a><br><img src="{0}" style="max-height:120px;max-width:180px;" />', obj.url)
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">открыть</a><br><img src="{0}" style="max-height:120px;max-width:180px;" />', obj.url)
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -73,11 +81,23 @@ class ProductGalleryItemAdmin(admin.ModelAdmin):
         "sort_order",
     )
 
-    @admin.display(description="Gallery file")
+    @admin.display(description="Файл галереи")
     def document_link(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
+
+
+@admin.register(SharedProductGallery)
+class SharedProductGalleryAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "slug", "linked_products_count")
+    search_fields = ("name", "slug", "description")
+    prepopulated_fields = {"slug": ("name",)}
+    inlines = [SharedProductGalleryItemInline]
+
+    @admin.display(description="Товаров привязано")
+    def linked_products_count(self, obj):
+        return obj.products.count()
 
 
 @admin.register(ProductCertificate)
@@ -98,11 +118,11 @@ class ProductCertificateAdmin(admin.ModelAdmin):
         "sort_order",
     )
 
-    @admin.display(description="Certificate")
+    @admin.display(description="Сертификат")
     def document_link(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
 
 
 @admin.register(NewsAttachment)
@@ -123,11 +143,11 @@ class NewsAttachmentAdmin(admin.ModelAdmin):
         "sort_order",
     )
 
-    @admin.display(description="Attachment")
+    @admin.display(description="Вложение")
     def document_link(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
 
 
 @admin.register(Sert)
@@ -153,11 +173,11 @@ class SertAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
         "updated_at",
     )
 
-    @admin.display(description="File")
+    @admin.display(description="Файл")
     def document_link(self, obj):
         if not obj or not obj.url:
-            return "No file"
-        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "open")
+            return "Нет файла"
+        return format_html('<a href="{0}" target="_blank">{1}</a>', obj.url, obj.title or "открыть")
 
     def render_preview_html(self, obj):
         if (obj.mime_type or "").startswith("image/"):
@@ -169,5 +189,5 @@ class SertAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
             )
         return (
             f'<section><h1>{escape(obj.title)}</h1>'
-            f'<p><a href="{escape(obj.url)}" target="_blank">Open file</a></p></section>'
+            f'<p><a href="{escape(obj.url)}" target="_blank">Открыть файл</a></p></section>'
         )

@@ -1,4 +1,5 @@
 from shop.admin_media_asset_registry import register_media_asset
+from shop.admin_media_cleanup_support import collect_unused_media_file_entries
 from shop.admin_media_sources import iter_media_library_source_entries
 
 
@@ -8,6 +9,7 @@ def collect_media_library_assets(search_query: str = "", usage_filter: str = "")
         register_media_asset(asset_map, **entry)
 
     assets = list(asset_map.values())
+    assets.extend(collect_unused_media_file_entries())
     query = search_query.strip().lower()
     if query:
         assets = [

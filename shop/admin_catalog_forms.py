@@ -8,22 +8,41 @@ from shop.models import Brand, Characteristic, Group, Product, ProductCharacteri
 
 
 class ProductImportForm(forms.Form):
-    xlsx_file = forms.FileField(label="XLSX file")
+    xlsx_file = forms.FileField(label="Файл XLSX")
 
     def clean_xlsx_file(self):
         file = self.cleaned_data["xlsx_file"]
         if not file.name.lower().endswith(".xlsx"):
-            raise ValidationError("Upload an .xlsx file.")
+            raise ValidationError("Загрузите файл в формате .xlsx.")
         return file
 
 
 class ProductExportForm(forms.Form):
+    MODE_SINGLE_GROUP = "single_group"
+    MODE_GROUPED_ZIP = "grouped_zip"
+    MODE_ALL_PRODUCTS = "all_products"
+
+    mode = forms.ChoiceField(
+        label="Режим экспорта",
+        choices=(
+            (MODE_SINGLE_GROUP, "Одна категория в XLSX"),
+            (MODE_GROUPED_ZIP, "Все категории отдельными XLSX в ZIP"),
+            (MODE_ALL_PRODUCTS, "Все товары в одном XLSX"),
+        ),
+        initial=MODE_SINGLE_GROUP,
+    )
     group = forms.ModelChoiceField(
         queryset=Group.objects.order_by("name"),
         required=False,
-        label="Group",
-        help_text="Choose a group to export a single XLSX. Leave empty to download a ZIP with separate files for each group.",
+        label="Категория",
+        help_text="Используется только для режима экспорта одной категории.",
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("mode") == self.MODE_SINGLE_GROUP and not cleaned_data.get("group"):
+            self.add_error("group", "Выберите категорию для экспорта одной таблицы.")
+        return cleaned_data
 
 
 class SynonymListField(forms.JSONField):
@@ -31,7 +50,7 @@ class SynonymListField(forms.JSONField):
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("required", False)
-        kwargs.setdefault("help_text", "One synonym per line. The value is stored as a JSON list.")
+        kwargs.setdefault("help_text", "Один синоним на строку. Значения сохраняются как JSON-список.")
         super().__init__(*args, **kwargs)
 
     def prepare_value(self, value):
@@ -48,14 +67,14 @@ class SynonymListField(forms.JSONField):
         if parsed in self.empty_values:
             return []
         if not isinstance(parsed, list):
-            raise ValidationError("Enter a list of synonyms.")
+            raise ValidationError("Введите список синонимов.")
         return [str(item).strip() for item in parsed if str(item).strip()]
 
 
 class BrandAdminForm(AdminMediaFormMixin):
     media_field_name = "media"
     upload_folder_name = "brands"
-    search_synonyms = SynonymListField(label="Search synonyms", required=False)
+    search_synonyms = SynonymListField(label="Поисковые синонимы", required=False)
 
     class Meta:
         model = Brand
@@ -65,7 +84,7 @@ class BrandAdminForm(AdminMediaFormMixin):
 class GroupAdminForm(SeoFieldsAdminFormMixin, AdminMediaFormMixin):
     media_field_name = "media"
     upload_folder_name = "groups"
-    search_synonyms = SynonymListField(label="Search synonyms", required=False)
+    search_synonyms = SynonymListField(label="Поисковые синонимы", required=False)
     seo_help_text_by_field = {
         "seo_title": SEO_GROUP_PLACEHOLDER_HELP_TEXT,
         "seo_h1": SEO_GROUP_PLACEHOLDER_HELP_TEXT,
@@ -91,10 +110,10 @@ class ProductAdminForm(HtmlTableSanitizerMixin, SeoFieldsAdminFormMixin, AdminMe
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["search_tsv"].label = "Search synonyms"
+        self.fields["search_tsv"].label = "Поисковые синонимы"
         self.fields["search_tsv"].help_text = (
-            "Comma-separated search synonyms and semantic hints. "
-            "Example: Р С•Р С–Р Р…Р ВµР В·Р В°РЎвЂ°Р С‘РЎвЂљР В°, Р С•Р С–Р Р…Р ВµР В·Р В°РЎвЂ°Р С‘РЎвЂљР Р…РЎвЂ№Р в„– Р СР В°РЎвЂљР ВµРЎР‚Р С‘Р В°Р В», fireproof, Р С•Р С–Р Р…Р ВµР В·Р В°РЎвЂ°."
+            "Синонимы и поисковые подсказки через запятую. "
+            "Например: огнезащита, огнезащитный материал, fireproof, теплоизоляция."
         )
         self.fields["assortment_html"].widget = TinyMCE(
             attrs={"cols": 120, "rows": 22},
@@ -120,4 +139,6 @@ class ProductCharacteristicAdminForm(forms.ModelForm):
         if product_id:
             selected_product = Product.objects.filter(pk=product_id).first()
             if selected_product and selected_product.group_id:
-                self.fields["characteristic"].queryset = Characteristic.objects.filter(group=selected_product.group).order_by("name", "id")
+                self.fields["characteristic"].queryset = Characteristic.objects.filter(
+                    group=selected_product.group
+                ).order_by("name", "id")

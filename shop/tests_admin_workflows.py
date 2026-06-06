@@ -106,9 +106,9 @@ class MediaLibraryAdminTests(TestCase):
         self.assertEqual(shared_asset["kind"], "image")
         self.assertTrue(shared_asset["file_exists"])
         usage_sources = {usage["source_label"] for usage in shared_asset["usages"]}
-        self.assertIn("Brand image", usage_sources)
-        self.assertIn("News media field", usage_sources)
-        self.assertIn("Product media", usage_sources)
+        self.assertIn("Изображение бренда", usage_sources)
+        self.assertIn("Медиа в поле новости", usage_sources)
+        self.assertIn("Основное медиа товара", usage_sources)
 
     def test_delete_media_asset_removes_file_and_all_dependencies(self):
         result = delete_media_asset(
@@ -141,5 +141,5 @@ class MediaLibraryAdminTests(TestCase):
         response = self.admin.changelist_view(request)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Media library", response.rendered_content)
-        self.assertIn("Delete everywhere", response.rendered_content)
+        self.assertIn("Библиотека медиа", response.rendered_content)
+        self.assertIn("Удалить везде", response.rendered_content)
