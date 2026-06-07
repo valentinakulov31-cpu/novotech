@@ -2,11 +2,10 @@ from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from django.contrib import admin, messages
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
-from django.utils import timezone
 
 from shop.admin_forms import ProductExportForm, ProductImportForm
 from shop.admin_inlines import ProductCertificateInline, ProductGalleryItemInline, ProductMediaInline
@@ -15,6 +14,7 @@ from shop.admin_support import SEO_FIELD_NAMES
 from shop.model_utils import transliterate_slug
 from shop.models import Product
 from shop.services import catalog_import as catalog_import_service
+from shop.services import catalog_import_jobs as catalog_import_jobs_service
 from shop.services import media_assets as media_assets_service
 
 
@@ -63,11 +63,6 @@ class ProductAdminImportExportMixin(TabbedFieldsetsAdminMixin, MediaPreviewAdmin
         custom_urls = [
             path("import-xlsx/", self.admin_site.admin_view(self.import_xlsx_view), name="shop_product_import_xlsx"),
             path("export-xlsx/", self.admin_site.admin_view(self.export_xlsx_view), name="shop_product_export_xlsx"),
-            path(
-                "import-report-xlsx/",
-                self.admin_site.admin_view(self.import_report_xlsx_view),
-                name="shop_product_import_report_xlsx",
-            ),
         ]
         return custom_urls + urls
 
@@ -78,53 +73,32 @@ class ProductAdminImportExportMixin(TabbedFieldsetsAdminMixin, MediaPreviewAdmin
         form = ProductImportForm(request.POST or None, request.FILES or None)
         if request.method == "POST" and form.is_valid():
             try:
-                counters, issues = catalog_import_service.import_products_from_workbook(form.cleaned_data["xlsx_file"])
-            except ValidationError as exc:
+                job = catalog_import_jobs_service.create_catalog_import_job(
+                    form.cleaned_data["xlsx_file"],
+                    created_by=request.user,
+                )
+            except Exception as exc:  # noqa: BLE001
                 form.add_error("xlsx_file", exc)
             else:
-                request.session["shop_product_import_report"] = {
-                    "generated_at": timezone.now().isoformat(),
-                    "counters": counters,
-                    "issues": issues,
-                }
-                context = {
-                    **self.admin_site.each_context(request),
-                    "opts": self.model._meta,
-                    "title": "Результат импорта товаров",
-                    "subtitle": "Импорт завершён. Ниже показаны итоговые счётчики и замечания по строкам.",
-                    "counters": counters,
-                    "issues": issues,
-                    "report_download_url": reverse("admin:shop_product_import_report_xlsx"),
-                    "changelist_url": reverse("admin:shop_product_changelist"),
-                    "import_url": reverse("admin:shop_product_import_xlsx"),
-                }
-                return TemplateResponse(request, "admin/shop/product/import_result.html", context)
+                self.message_user(
+                    request,
+                    f"Импорт поставлен в очередь. Откройте задание #{job.pk}, чтобы следить за прогрессом.",
+                    level=messages.SUCCESS,
+                )
+                return HttpResponseRedirect(reverse("admin:shop_catalogimportjob_change", args=[job.pk]))
 
         context = {
             **self.admin_site.each_context(request),
             "opts": self.model._meta,
             "title": "Импорт товаров из XLSX",
             "form": form,
-            "subtitle": "Загрузите таблицу с товарами, файлами, SEO-полями и колонками характеристик char_*.",
+            "subtitle": (
+                "Загрузите XLSX, а импорт выполнится в фоне через Redis. "
+                "После постановки в очередь откроется страница задания со статусом и отчётом."
+            ),
+            "jobs_url": reverse("admin:shop_catalogimportjob_changelist"),
         }
         return TemplateResponse(request, "admin/shop/product/import_xlsx.html", context)
-
-    def import_report_xlsx_view(self, request):
-        report = request.session.get("shop_product_import_report")
-        if not report:
-            self.message_user(request, "Отчёт по импорту не найден. Сначала выполните импорт.", level=messages.WARNING)
-            return HttpResponseRedirect(reverse("admin:shop_product_import_xlsx"))
-
-        payload = catalog_import_service.workbook_bytes_from_import_report(
-            report.get("counters") or {},
-            report.get("issues") or [],
-        )
-        response = HttpResponse(
-            payload,
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-        response["Content-Disposition"] = 'attachment; filename="product_import_report.xlsx"'
-        return response
 
     def export_xlsx_view(self, request):
         if not self.has_view_or_change_permission(request):

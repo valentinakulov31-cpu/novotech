@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -271,6 +272,52 @@ class ProductCertificate(models.Model):
     def save(self, *args, **kwargs):
         assign_sort_order(self, filters={"product": self.product})
         super().save(*args, **kwargs)
+
+
+class CatalogImportJob(models.Model):
+    """Background catalog import task."""
+
+    STATUS_QUEUED = "queued"
+    STATUS_PROCESSING = "processing"
+    STATUS_SUCCEEDED = "succeeded"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = (
+        (STATUS_QUEUED, "В очереди"),
+        (STATUS_PROCESSING, "Обрабатывается"),
+        (STATUS_SUCCEEDED, "Завершён"),
+        (STATUS_FAILED, "Ошибка"),
+    )
+
+    source_file = models.FileField(upload_to="import_jobs/source/%Y/%m/%d")
+    original_filename = models.CharField(max_length=255)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_QUEUED)
+    queue_name = models.CharField(max_length=255, default="catalog_import_jobs")
+    counters = models.JSONField(default=dict, blank=True)
+    issues = models.JSONField(default=list, blank=True)
+    fatal_error = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="catalog_import_jobs",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "catalog_import_jobs"
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Импорт каталога"
+        verbose_name_plural = "Импорт каталога"
+
+    def __str__(self):
+        return f"Импорт #{self.pk} ({self.original_filename})"
+
+    @property
+    def is_finished(self) -> bool:
+        return self.status in {self.STATUS_SUCCEEDED, self.STATUS_FAILED}
 
 
 class Characteristic(models.Model):

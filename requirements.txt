@@ -10,3 +10,4 @@ openpyxl==3.1.5
 django-tinymce==5.0.0
 gunicorn==23.0.0
 whitenoise==6.7.0
+redis==5.0.8

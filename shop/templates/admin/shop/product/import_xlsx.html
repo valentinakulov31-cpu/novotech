@@ -13,6 +13,9 @@
 <div id="content-main">
   <h1>{{ title }}</h1>
   <p>{{ subtitle }}</p>
+  <div class="submit-row" style="margin-bottom: 1rem;">
+    <a href="{{ jobs_url }}" class="button">Журнал импортов</a>
+  </div>
   <p>
     Ожидаемые колонки: <code>sku</code>, опционально <code>slug</code>, <code>name</code>, <code>price</code>,
     <code>currency</code>, <code>description</code>, <code>assortment_html</code>, <code>characteristics_html</code>,
@@ -30,7 +33,7 @@
     {% csrf_token %}
     {{ form.as_p }}
     <div class="submit-row">
-      <input type="submit" value="Импортировать" class="default">
+      <input type="submit" value="Поставить в очередь" class="default">
       <a href="{% url 'admin:shop_product_changelist' %}" class="button cancel-link">Отмена</a>
     </div>
   </form>

@@ -23,6 +23,7 @@ from shop.model_utils import (
 )
 from shop.models_catalog import (
     Brand,
+    CatalogImportJob,
     Characteristic,
     City,
     Group,

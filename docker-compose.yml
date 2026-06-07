@@ -1,9 +1,19 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: novotech_redis
+    restart: unless-stopped
+    network_mode: host
+    command: ["redis-server", "--bind", "127.0.0.1", "--protected-mode", "yes", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
   web:
     build: .
     container_name: django_shop_web
     restart: unless-stopped
     network_mode: host
+    depends_on:
+      - redis
     env_file:
       - .env
     environment:
@@ -13,6 +23,23 @@ services:
       MEDIA_ROOT: /app/media
     volumes:
       - /var/www/django_shop/staticfiles:/app/staticfiles
+      - /var/www/django_shop/media:/app/media
+  import_worker:
+    build: .
+    container_name: novotech_import_worker
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      RUN_MIGRATIONS: "0"
+      RUN_COLLECTSTATIC: "0"
+      STATIC_ROOT: /app/staticfiles
+      MEDIA_ROOT: /app/media
+    command: ["python", "manage.py", "process_import_jobs"]
+    volumes:
       - /var/www/django_shop/media:/app/media
   ingress:
     build:
@@ -55,3 +82,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  redis_data:

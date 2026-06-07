@@ -246,6 +246,10 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False') == 'True'
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False') == 'True'
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@localhost')
 
+REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
+CATALOG_IMPORT_QUEUE_NAME = os.getenv('CATALOG_IMPORT_QUEUE_NAME', 'catalog_import_jobs')
+CATALOG_IMPORT_QUEUE_BLOCK_SECONDS = int(os.getenv('CATALOG_IMPORT_QUEUE_BLOCK_SECONDS', '5'))
+
 TINYMCE_DEFAULT_CONFIG = {
     'height': 420,
     'menubar': True,

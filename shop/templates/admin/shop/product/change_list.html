@@ -5,6 +5,9 @@
     <a href="{% url 'admin:shop_product_import_xlsx' %}">Import XLSX</a>
   </li>
   <li>
+    <a href="{% url 'admin:shop_catalogimportjob_changelist' %}">Журнал импортов</a>
+  </li>
+  <li>
     <a href="{% url 'admin:shop_product_export_xlsx' %}">Export XLSX</a>
   </li>
   {{ block.super }}

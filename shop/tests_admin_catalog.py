@@ -7,10 +7,12 @@ from unittest.mock import patch
 from zipfile import ZipFile
 
 from django.contrib.admin.sites import AdminSite
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.test.client import RequestFactory
+from django.urls import reverse
 from openpyxl import load_workbook
 
 from shop.admin import (
@@ -19,7 +21,18 @@ from shop.admin import (
     build_product_export_rows,
     import_products_from_workbook,
 )
-from shop.models import Brand, Characteristic, Group, Product, ProductCertificate, ProductCharacteristic, ProductGalleryItem, ProductMedia
+from shop.models import (
+    Brand,
+    CatalogImportJob,
+    Characteristic,
+    Group,
+    Product,
+    ProductCertificate,
+    ProductCharacteristic,
+    ProductGalleryItem,
+    ProductMedia,
+)
+from shop.services import catalog_import_jobs as catalog_import_jobs_service
 from shop.tests_support import FakeRemoteResponse, TEST_GIF
 
 
@@ -335,3 +348,59 @@ class AdminFileValidationTests(TestCase):
             files={"certificate_upload": upload},
         )
         self.assertTrue(form.is_valid(), form.errors)
+
+
+class CatalogImportQueueTests(TestCase):
+    def setUp(self):
+        self.admin_user = get_user_model().objects.create_superuser(
+            username="catalog-import-admin",
+            email="catalog-import-admin@example.com",
+            password="secret123",
+        )
+        self.client.force_login(self.admin_user)
+
+    @staticmethod
+    def _build_workbook_bytes():
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.append(["sku", "name", "price", "currency", "group_slug", "brand_slug"])
+        worksheet.append(["QUEUE-1", "Queued import product", "99.00", "RUB", "Queued Group", "Queued Brand"])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+    def test_admin_import_view_creates_job_and_redirects_to_job_page(self):
+        upload = SimpleUploadedFile(
+            "products.xlsx",
+            self._build_workbook_bytes(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        with patch("shop.services.import_queue.enqueue_catalog_import_job") as enqueue_mock:
+            response = self.client.post(reverse("admin:shop_product_import_xlsx"), {"xlsx_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        job = CatalogImportJob.objects.get()
+        self.assertRedirects(response, reverse("admin:shop_catalogimportjob_change", args=[job.pk]))
+        self.assertEqual(job.original_filename, "products.xlsx")
+        self.assertEqual(job.created_by, self.admin_user)
+        enqueue_mock.assert_called_once_with(job.pk)
+
+    def test_process_catalog_import_job_creates_products_in_background(self):
+        upload = SimpleUploadedFile(
+            "queued-products.xlsx",
+            self._build_workbook_bytes(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        with patch("shop.services.import_queue.enqueue_catalog_import_job"):
+            job = catalog_import_jobs_service.create_catalog_import_job(upload, created_by=self.admin_user)
+
+        processed_job = catalog_import_jobs_service.process_catalog_import_job(job.pk)
+
+        self.assertEqual(processed_job.status, CatalogImportJob.STATUS_SUCCEEDED)
+        self.assertEqual(processed_job.counters["products_created"], 1)
+        self.assertTrue(Product.objects.filter(sku="QUEUE-1").exists())

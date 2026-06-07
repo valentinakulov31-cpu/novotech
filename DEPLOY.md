@@ -19,6 +19,8 @@ PostgreSQL используется системная, не в Docker.
 Docker поднимает:
 
 - Django/Gunicorn на `127.0.0.1:8000`;
+- Redis на `127.0.0.1:6379` для фонового импорта каталога;
+- отдельный worker импорта `novotech_import_worker`, который читает задания из Redis;
 - публичный ingress через Caddy на `80/443`;
 - watchdog-контейнер `autoheal`, который перезапускает ingress при провале его собственного healthcheck.
 
@@ -93,6 +95,8 @@ DEFAULT_FROM_EMAIL=your-gmail@gmail.com
 
 RUN_MIGRATIONS=1
 RUN_COLLECTSTATIC=1
+REDIS_URL=redis://127.0.0.1:6379/0
+CATALOG_IMPORT_QUEUE_NAME=catalog_import_jobs
 ```
 
 Редактирование:
@@ -118,6 +122,7 @@ cd /root/project_shop/novotech
 docker compose build --no-cache
 docker compose up -d --force-recreate
 docker compose logs -f web
+docker compose logs -f import_worker
 ```
 
 Проверка:
@@ -236,6 +241,21 @@ ss -ltnp | grep -E ':80|:443|:3000|:8000'
 ```
 
 ## 7. Импорт XLSX и файлы
+
+Импорт XLSX теперь выполняется в фоне:
+
+- админка создаёт задание `Импорт каталога`;
+- XLSX сохраняется в `MEDIA_ROOT/import_jobs/...`;
+- web-контейнер только ставит задание в Redis;
+- `novotech_import_worker` обрабатывает импорт отдельно и пишет статус/ошибки в БД.
+
+Для проверки очереди и worker:
+
+```bash
+docker compose ps
+docker compose logs --tail=100 import_worker
+docker compose exec web python manage.py process_import_jobs --once
+```
 
 В колонках `media_urls`, `gallery_urls`, `document_urls`, `certificate_urls` можно указывать:
 
