@@ -4,6 +4,7 @@ services:
     container_name: novotech_redis
     restart: unless-stopped
     network_mode: host
+    profiles: ["bundled-redis"]
     command: ["redis-server", "--bind", "127.0.0.1", "--protected-mode", "yes", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -12,8 +13,6 @@ services:
     container_name: django_shop_web
     restart: unless-stopped
     network_mode: host
-    depends_on:
-      - redis
     env_file:
       - .env
     environment:
@@ -29,8 +28,6 @@ services:
     container_name: novotech_import_worker
     restart: unless-stopped
     network_mode: host
-    depends_on:
-      - redis
     env_file:
       - .env
     environment:

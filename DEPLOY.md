@@ -257,6 +257,13 @@ docker compose logs --tail=100 import_worker
 docker compose exec web python manage.py process_import_jobs --once
 ```
 
+Если Redis уже установлен на хосте, можно использовать его без контейнера: сервис `redis` в `docker-compose.yml`
+помечен как опциональный профиль `bundled-redis` и по умолчанию не стартует. Для встроенного контейнерного Redis:
+
+```bash
+docker compose --profile bundled-redis up -d redis web import_worker
+```
+
 В колонках `media_urls`, `gallery_urls`, `document_urls`, `certificate_urls` можно указывать:
 
 - URL, например `https://example.com/file.pdf`;
