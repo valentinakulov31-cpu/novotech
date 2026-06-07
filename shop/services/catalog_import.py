@@ -1,6 +1,7 @@
 import mimetypes
 import re
 import shutil
+import time
 import uuid
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -29,7 +30,8 @@ from shop.services.media_assets import ensure_single_primary, sync_product_media
 
 
 REMOTE_IMPORT_MAX_BYTES = 100 * 1024 * 1024
-REMOTE_IMPORT_TIMEOUT_SECONDS = 30
+REMOTE_IMPORT_TIMEOUT_SECONDS = 5
+REMOTE_IMPORT_TOTAL_TIMEOUT_SECONDS = 20
 PRODUCT_OPTIONAL_IMPORT_FIELDS = (
     "description",
     "assortment_html",
@@ -163,6 +165,7 @@ def save_remote_file_url(url: str, folder_name: str) -> dict:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     request = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; NovatehMediaImporter/1.0)"})
+    started_at = time.monotonic()
     with urlopen(request, timeout=REMOTE_IMPORT_TIMEOUT_SECONDS) as response:
         content_length = response.headers.get("Content-Length")
         if content_length and int(content_length) > REMOTE_IMPORT_MAX_BYTES:
@@ -174,6 +177,9 @@ def save_remote_file_url(url: str, folder_name: str) -> dict:
 
         with storage_path.open("wb") as destination:
             while True:
+                if time.monotonic() - started_at > REMOTE_IMPORT_TOTAL_TIMEOUT_SECONDS:
+                    storage_path.unlink(missing_ok=True)
+                    raise ValidationError(f"Истекло время ожидания скачивания удалённого файла: {url}")
                 chunk = response.read(1024 * 1024)
                 if not chunk:
                     break
