@@ -6,7 +6,9 @@ from django.test.client import RequestFactory
 from django.urls import reverse
 from rest_framework.test import APIClient
 
+from shop.filtering_search_parsing import tokenize_query
 from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic
+from shop.model_slug_utils import transliterate_slug
 from shop.permissions import IsAdmin
 
 
@@ -82,3 +84,16 @@ class IsAdminPermissionTests(TestCase):
         )
 
         self.assertFalse(IsAdmin().has_permission(request, view=None))
+
+
+class SearchTokenizationTests(TestCase):
+    def test_transliterate_slug_handles_cyrillic(self):
+        self.assertEqual(transliterate_slug("говно"), "govno")
+        self.assertEqual(transliterate_slug("заявка"), "zayavka")
+
+    def test_tokenize_query_does_not_emit_random_item_fallbacks_for_cyrillic(self):
+        tokens = tokenize_query("говно")
+        self.assertIn("говно", tokens)
+        self.assertIn("govno", tokens)
+        self.assertNotIn("item", tokens)
+        self.assertFalse(any(token.startswith("item-") for token in tokens))
