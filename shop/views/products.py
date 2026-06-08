@@ -1,6 +1,9 @@
 """
 Product views
 """
+import hashlib
+
+from django.core.cache import cache
 from rest_framework.generics import ListAPIView, CreateAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -30,6 +33,18 @@ from shop.view_transport_helpers import (
 )
 
 
+POPULAR_PRODUCTS_CACHE_TTL = 50 * 60
+
+
+def build_popular_products_cache_key(query_params):
+    normalized_params = sorted(
+        (key, tuple(values))
+        for key, values in query_params.lists()
+    )
+    cache_seed = repr(normalized_params).encode("utf-8")
+    return f"products:popular:v1:{hashlib.sha256(cache_seed).hexdigest()}"
+
+
 @extend_schema(tags=['products'])
 @extend_schema_view(
     get=extend_schema(
@@ -51,6 +66,21 @@ class ProductListView(ListAPIView):
     """List products with optional filters"""
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        if parse_bool(request.query_params.get('popular')) is True:
+            cache_key = build_popular_products_cache_key(request.query_params)
+            cached_data = cache.get(cache_key)
+            if cached_data is not None:
+                return Response(cached_data)
+
+            queryset = self.filter_queryset(self.get_queryset())
+            serializer = self.get_serializer(queryset, many=True)
+            data = serializer.data
+            cache.set(cache_key, data, POPULAR_PRODUCTS_CACHE_TTL)
+            return Response(data)
+
+        return super().list(request, *args, **kwargs)
     
     def get_queryset(self):
         payload = build_filter_payload_from_query_params(self.request.query_params)

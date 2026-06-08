@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.urls import reverse
 
 from shop.models import Agent, PUBLISH_STATUS_DRAFT, PUBLISH_STATUS_PUBLISHED, Product
@@ -54,6 +55,7 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
         self.assertEqual(data[0]["sku"], "ER-0001")
 
     def test_products_list_supports_popular_random_four(self):
+        cache.clear()
         for index in range(9):
             Product.objects.create(
                 sku=f"POP-{index}",
@@ -69,6 +71,20 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(len(data), 4)
+
+        Product.objects.create(
+            sku="POP-CACHED",
+            name="Popular cached",
+            price="99.00",
+            currency="RUB",
+            group=self.group,
+            brand=self.brand,
+            available=True,
+        )
+
+        cached_response = self.client.get(reverse("products-list"), {"popular": "true"})
+        self.assertEqual(cached_response.status_code, 200)
+        self.assertEqual(cached_response.json(), data)
 
     def test_catalog_results_endpoint_uses_shared_context_and_filters(self):
         response = self.client.post(
