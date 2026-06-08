@@ -130,6 +130,32 @@ class MediaLibraryAdminTests(TestCase):
         self.assertEqual(result["updated_news"], 1)
         self.assertTrue(result["file_deleted"])
 
+    def test_media_library_admin_changelist_paginates_assets(self):
+        for index in range(105):
+            ProductMedia.objects.create(
+                product=self.product,
+                storage_path=f"media/page-{index}.jpg",
+                url=f"/static/admin_uploads/product_media/page-{index}.jpg",
+                mime_type="image/jpeg",
+                media_kind="image",
+                size_bytes=10,
+                sort_order=index + 1,
+            )
+        request = RequestFactory().get(reverse("admin:shop_medialibrary_changelist"), {"page": "2"})
+        request.user = get_user_model().objects.create_superuser(
+            username="media-admin-page",
+            email="media-admin-page@example.com",
+            password="secret123",
+        )
+
+        response = self.admin.changelist_view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context_data["asset_count"], 106)
+        self.assertEqual(response.context_data["page_obj"].number, 2)
+        self.assertEqual(response.context_data["paginator"].num_pages, 2)
+        self.assertEqual(len(response.context_data["media_assets"]), 6)
+
     def test_media_library_admin_changelist_renders_custom_table(self):
         request = RequestFactory().get(reverse("admin:shop_medialibrary_changelist"))
         request.user = get_user_model().objects.create_superuser(

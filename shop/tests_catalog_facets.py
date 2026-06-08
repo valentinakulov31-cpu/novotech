@@ -53,7 +53,7 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["sku"], "ER-0001")
 
-    def test_products_list_supports_popular_random_eight(self):
+    def test_products_list_supports_popular_random_four(self):
         for index in range(9):
             Product.objects.create(
                 sku=f"POP-{index}",
@@ -68,7 +68,7 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
         response = self.client.get(reverse("products-list"), {"popular": "true"})
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(len(data), 8)
+        self.assertEqual(len(data), 4)
 
     def test_catalog_results_endpoint_uses_shared_context_and_filters(self):
         response = self.client.post(

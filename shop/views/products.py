@@ -41,7 +41,7 @@ from shop.view_transport_helpers import (
             OpenApiParameter(name='min_price', description='Minimum price', required=False, type=float),
             OpenApiParameter(name='max_price', description='Maximum price', required=False, type=float),
             OpenApiParameter(name='available', description='Filter by availability', required=False, type=bool),
-            OpenApiParameter(name='popular', description='Return 8 random products', required=False, type=bool),
+            OpenApiParameter(name='popular', description='Return 4 random products', required=False, type=bool),
             OpenApiParameter(name='attr.<slug>', description='Repeatable attribute filter, comma separated values allowed', required=False, type=str),
         ],
         responses={200: ProductSerializer(many=True)}
@@ -64,7 +64,7 @@ class ProductListView(ListAPIView):
             payload,
         )
         if parse_bool(self.request.query_params.get('popular')) is True:
-            return queryset.order_by('?')[:8]
+            return queryset.order_by('?')[:4]
         return queryset
 
 

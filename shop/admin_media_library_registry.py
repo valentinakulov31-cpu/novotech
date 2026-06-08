@@ -1,9 +1,11 @@
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
+from django.utils.http import urlencode
 
 from shop.admin_media_cleanup_support import delete_unused_media_files
 from shop.admin_support import collect_media_library_assets, delete_media_asset
@@ -23,6 +25,8 @@ USAGE_OPTIONS = [
     "Вложение новости",
     "Общий сертификат",
 ]
+
+MEDIA_LIBRARY_PAGE_SIZE = 100
 
 
 @admin.register(MediaLibrary)
@@ -51,12 +55,25 @@ class MediaLibraryAdmin(admin.ModelAdmin):
         search_query = request.GET.get("q", "").strip()
         usage_filter = request.GET.get("usage", "").strip()
         assets = collect_media_library_assets(search_query=search_query, usage_filter=usage_filter)
+        paginator = Paginator(assets, MEDIA_LIBRARY_PAGE_SIZE)
+        page_obj = paginator.get_page(request.GET.get("page"))
+        pagination_query = urlencode({
+            key: value
+            for key, value in (
+                ("q", search_query),
+                ("usage", usage_filter),
+            )
+            if value
+        })
         context = {
             **self.admin_site.each_context(request),
             "opts": self.model._meta,
             "title": "Библиотека медиа",
             "subtitle": "Все файлы, найденные в базе и в локальной папке загрузок.",
-            "media_assets": assets,
+            "media_assets": page_obj.object_list,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "pagination_query": pagination_query,
             "search_query": search_query,
             "usage_filter": usage_filter,
             "usage_options": USAGE_OPTIONS,
@@ -77,10 +94,11 @@ class MediaLibraryAdmin(admin.ModelAdmin):
         asset_title = (request.POST.get("asset_title") or "").strip() or "файл"
         search_query = (request.POST.get("q") or "").strip()
         usage_filter = (request.POST.get("usage") or "").strip()
+        page_number = (request.POST.get("page") or "").strip()
 
         if not asset_url and not asset_storage_path:
             self.message_user(request, "Не передан идентификатор файла.", level=messages.ERROR)
-            return self._redirect_with_filters(search_query, usage_filter)
+            return self._redirect_with_filters(search_query, usage_filter, page_number)
 
         with transaction.atomic():
             result = delete_media_asset(asset_url, asset_storage_path)
@@ -98,7 +116,7 @@ class MediaLibraryAdmin(admin.ModelAdmin):
             ),
             level=messages.SUCCESS,
         )
-        return self._redirect_with_filters(search_query, usage_filter)
+        return self._redirect_with_filters(search_query, usage_filter, page_number)
 
     def delete_unused_view(self, request):
         if request.method != "POST":
@@ -109,13 +127,17 @@ class MediaLibraryAdmin(admin.ModelAdmin):
         self.message_user(request, f"Удалено неиспользуемых файлов: {deleted_count}.", level=messages.SUCCESS)
         return HttpResponseRedirect(reverse("admin:shop_medialibrary_changelist"))
 
-    def _redirect_with_filters(self, search_query: str, usage_filter: str):
+    def _redirect_with_filters(self, search_query: str, usage_filter: str, page_number: str = ""):
         redirect_url = reverse("admin:shop_medialibrary_changelist")
-        query_parts = []
-        if search_query:
-            query_parts.append(f"q={search_query}")
-        if usage_filter:
-            query_parts.append(f"usage={usage_filter}")
-        if query_parts:
-            redirect_url = f"{redirect_url}?{'&'.join(query_parts)}"
+        query_string = urlencode({
+            key: value
+            for key, value in (
+                ("q", search_query),
+                ("usage", usage_filter),
+                ("page", page_number),
+            )
+            if value
+        })
+        if query_string:
+            redirect_url = f"{redirect_url}?{query_string}"
         return HttpResponseRedirect(redirect_url)

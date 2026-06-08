@@ -103,6 +103,7 @@
                   <input type="hidden" name="asset_title" value="{{ asset.title }}" />
                   <input type="hidden" name="q" value="{{ search_query }}" />
                   <input type="hidden" name="usage" value="{{ usage_filter }}" />
+                  <input type="hidden" name="page" value="{{ page_obj.number }}" />
                   <button type="submit" class="deletelink" style="background: none; border: none; padding: 0; cursor: pointer;">Удалить везде</button>
                 </form>
               </td>
@@ -114,6 +115,22 @@
           {% endfor %}
         </tbody>
       </table>
+      {% if page_obj.has_other_pages %}
+        <p class="paginator" style="margin: 1rem 0;">
+          {% if page_obj.has_previous %}
+            <a href="?page=1{% if pagination_query %}&{{ pagination_query }}{% endif %}">1</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">&lsaquo;</a>
+          {% endif %}
+          <span>
+            Page {{ page_obj.number }} of {{ paginator.num_pages }}
+            ({{ asset_count }} total)
+          </span>
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">&rsaquo;</a>
+            <a href="?page={{ paginator.num_pages }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">{{ paginator.num_pages }}</a>
+          {% endif %}
+        </p>
+      {% endif %}
     </div>
   </div>
 {% endblock %}
