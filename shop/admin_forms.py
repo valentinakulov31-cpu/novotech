@@ -8,7 +8,6 @@ from shop.admin_asset_forms import (
 )
 from shop.admin_catalog_forms import (
     BrandAdminForm,
-    CharacteristicInlineAdminForm,
     GroupAdminForm,
     ProductAdminForm,
     ProductCharacteristicAdminForm,

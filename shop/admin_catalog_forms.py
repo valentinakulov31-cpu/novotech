@@ -4,7 +4,6 @@ from tinymce.widgets import TinyMCE
 
 from shop.admin_form_mixins import AdminMediaFormMixin, HtmlTableSanitizerMixin, SeoFieldsAdminFormMixin
 from shop.admin_support import SEO_AUTO_HELP_TEXT, SEO_GROUP_PLACEHOLDER_HELP_TEXT
-from shop.model_utils import transliterate_slug
 from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic
 
 
@@ -150,30 +149,3 @@ class ProductCharacteristicAdminForm(forms.ModelForm):
                 self.fields["characteristic"].queryset = Characteristic.objects.filter(
                     group=selected_product.group
                 ).order_by("name", "id")
-
-
-class CharacteristicInlineAdminForm(forms.ModelForm):
-    class Meta:
-        model = Characteristic
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        group = self.initial.get("group") or getattr(self.instance, "group", None)
-        group_field = self.fields.get("group")
-        if group_field is not None:
-            if group:
-                group_field.initial = getattr(group, "pk", group)
-            group_field.widget = forms.HiddenInput()
-
-        slug_field = self.fields.get("slug")
-        if slug_field is not None:
-            slug_field.required = False
-            slug_field.help_text = "Можно оставить пустым, slug соберётся из названия автоматически."
-
-    def clean_slug(self):
-        slug = str(self.cleaned_data.get("slug") or "").strip()
-        if slug:
-            return slug
-        name = str(self.cleaned_data.get("name") or "").strip()
-        return transliterate_slug(name) if name else ""

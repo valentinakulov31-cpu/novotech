@@ -1,14 +1,15 @@
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count
 from django.http import HttpResponse
 from django.urls import path, reverse
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 
 from shop.admin_catalog_import_export import ProductAdminImportExportMixin
 from shop.admin_forms import BrandAdminForm, GroupAdminForm, ProductAdminForm, ProductCharacteristicAdminForm
-from shop.admin_inlines import CharacteristicInline
 from shop.admin_mixins import MediaPreviewAdminMixin, TabbedFieldsetsAdminMixin
 from shop.admin_support import SEO_FIELD_NAMES
+from shop.model_utils import transliterate_slug
 from shop.models import Brand, CatalogImportJob, Characteristic, City, Group, Product, ProductCharacteristic
 from shop.services import catalog_import_jobs as catalog_import_jobs_service
 
@@ -34,11 +35,10 @@ class CityAdmin(admin.ModelAdmin):
 @admin.register(Group)
 class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelAdmin):
     form = GroupAdminForm
-    inlines = (CharacteristicInline,)
     list_display = ("id", "name", "slug", "parent", "media_preview")
     search_fields = ("name", "slug", "seo_title", "seo_h1")
     list_filter = ("parent",)
-    readonly_fields = ("media_preview",)
+    readonly_fields = ("media_preview", "characteristics_tab")
     fieldsets = (
         (
             "Основное",
@@ -63,7 +63,93 @@ class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelA
                 "fields": SEO_FIELD_NAMES,
             },
         ),
+        (
+            "Характеристики",
+            {
+                "classes": ("tabbed-fieldset",),
+                "fields": ("characteristics_tab",),
+            },
+        ),
     )
+
+    @admin.display(description="Характеристики группы")
+    def characteristics_tab(self, obj):
+        if not obj or not obj.pk:
+            return "Сначала сохраните группу, затем сможете управлять её характеристиками во вкладке."
+
+        add_url = f'{reverse("admin:shop_characteristic_add")}?group={obj.pk}'
+        popup_add_url = f"{add_url}&_popup=1"
+        actions = format_html(
+            '<div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;">'
+            '<a class="button" href="{}" target="_blank">Создать характеристику</a>'
+            '<a class="button" href="{}" onclick="window.open(this.href, \'characteristic-create-popup-{}\', \'width=1100,height=800,resizable=yes,scrollbars=yes\'); return false;">Создать в popup</a>'
+            "</div>",
+            add_url,
+            popup_add_url,
+            obj.pk,
+        )
+        characteristics = (
+            Characteristic.objects.filter(group=obj)
+            .annotate(values_count=Count("product_values"))
+            .order_by("name", "id")
+        )
+        if not characteristics:
+            return format_html("{}<p style='margin:0;'>У этой группы пока нет характеристик.</p>", actions)
+
+        rows = format_html_join(
+            "",
+            "{}",
+            (
+                (
+                    format_html(
+                        "<tr>"
+                        "<td style='padding:8px 10px;'><strong>{}</strong></td>"
+                        "<td style='padding:8px 10px;'><code>{}</code></td>"
+                        "<td style='padding:8px 10px;'>{}</td>"
+                        "<td style='padding:8px 10px;'>{}</td>"
+                        "<td style='padding:8px 10px;text-align:center;'>{}</td>"
+                        "<td style='padding:8px 10px;text-align:center;'>{}</td>"
+                        "<td style='padding:8px 10px;text-align:center;'>{}</td>"
+                        "<td style='padding:8px 10px;white-space:nowrap;'>"
+                        '<a href="{}" target="_blank">Открыть</a> | '
+                        '<a href="{}" onclick="window.open(this.href, \'characteristic-popup-{}\', \'width=1100,height=800,resizable=yes,scrollbars=yes\'); return false;">Popup</a>'
+                        "</td>"
+                        "</tr>",
+                        characteristic.name,
+                        characteristic.slug,
+                        characteristic.get_data_type_display(),
+                        characteristic.unit or "—",
+                        "Да" if characteristic.is_filterable else "Нет",
+                        "Да" if characteristic.is_searchable else "Нет",
+                        characteristic.values_count,
+                        reverse("admin:shop_characteristic_change", args=[characteristic.pk]),
+                        f'{reverse("admin:shop_characteristic_change", args=[characteristic.pk])}?_popup=1',
+                        characteristic.pk,
+                    ),
+                )
+                for characteristic in characteristics
+            ),
+        )
+        return format_html(
+            "{}"
+            "<table style='border-collapse:collapse;width:100%;'>"
+            "<thead>"
+            "<tr>"
+            "<th style='padding:8px 10px;text-align:left;'>Название</th>"
+            "<th style='padding:8px 10px;text-align:left;'>Slug</th>"
+            "<th style='padding:8px 10px;text-align:left;'>Тип</th>"
+            "<th style='padding:8px 10px;text-align:left;'>Ед.</th>"
+            "<th style='padding:8px 10px;text-align:center;'>Фильтр</th>"
+            "<th style='padding:8px 10px;text-align:center;'>Поиск</th>"
+            "<th style='padding:8px 10px;text-align:center;'>Привязок</th>"
+            "<th style='padding:8px 10px;text-align:left;'>Действия</th>"
+            "</tr>"
+            "</thead>"
+            "<tbody>{}</tbody>"
+            "</table>",
+            actions,
+            rows,
+        )
 
 
 @admin.register(Product)
@@ -225,6 +311,18 @@ class CharacteristicAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "slug", "group", "data_type", "is_filterable", "is_searchable")
     search_fields = ("name", "slug")
     list_filter = ("data_type", "is_filterable", "is_searchable", "group")
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        group_id = request.GET.get("group")
+        if group_id:
+            initial["group"] = group_id
+        return initial
+
+    def save_model(self, request, obj, form, change):
+        if not obj.slug and obj.name:
+            obj.slug = transliterate_slug(obj.name)
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(ProductCharacteristic)
