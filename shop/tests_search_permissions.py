@@ -7,6 +7,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from shop.filtering_search_parsing import tokenize_query
+from shop.filtering_search_ranking import _word_matches_variant
 from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic
 from shop.model_slug_utils import transliterate_slug
 from shop.permissions import IsAdmin
@@ -97,3 +98,6 @@ class SearchTokenizationTests(TestCase):
         self.assertIn("govno", tokens)
         self.assertNotIn("item", tokens)
         self.assertFalse(any(token.startswith("item-") for token in tokens))
+
+    def test_fuzzy_match_rejects_loose_cyrillic_false_positive(self):
+        self.assertFalse(_word_matches_variant("главнае", "гавна"))

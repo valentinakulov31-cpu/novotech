@@ -107,6 +107,8 @@ def _word_matches_variant(word, variant):
         if word in variant or variant in word:
             return True
     if len(word) >= 5 and len(variant) >= 5:
+        if word[0] != variant[0] or word[-1] != variant[-1]:
+            return False
         return SequenceMatcher(None, word, variant).ratio() >= PYTHON_FUZZY_RATIO_THRESHOLD
     return False
 
