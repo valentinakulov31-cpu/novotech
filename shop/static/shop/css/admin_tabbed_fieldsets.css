@@ -29,3 +29,7 @@
 .change-form fieldset.tabbed-fieldset.is-hidden {
   display: none;
 }
+
+.change-form .inline-group.tabbed-inline-group.is-hidden {
+  display: none;
+}

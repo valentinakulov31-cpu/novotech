@@ -6,6 +6,7 @@ from django.utils.html import format_html
 
 from shop.admin_catalog_import_export import ProductAdminImportExportMixin
 from shop.admin_forms import BrandAdminForm, GroupAdminForm, ProductAdminForm, ProductCharacteristicAdminForm
+from shop.admin_inlines import CharacteristicInline
 from shop.admin_mixins import MediaPreviewAdminMixin, TabbedFieldsetsAdminMixin
 from shop.admin_support import SEO_FIELD_NAMES
 from shop.models import Brand, CatalogImportJob, Characteristic, City, Group, Product, ProductCharacteristic
@@ -33,6 +34,7 @@ class CityAdmin(admin.ModelAdmin):
 @admin.register(Group)
 class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelAdmin):
     form = GroupAdminForm
+    inlines = (CharacteristicInline,)
     list_display = ("id", "name", "slug", "parent", "media_preview")
     search_fields = ("name", "slug", "seo_title", "seo_h1")
     list_filter = ("parent",)

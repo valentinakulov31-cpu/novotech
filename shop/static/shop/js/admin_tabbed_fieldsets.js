@@ -1,25 +1,31 @@
 (function () {
-  function initTabbedFieldsets() {
+  function collectTabbedSections() {
     var fieldsets = Array.prototype.slice.call(document.querySelectorAll("fieldset.tabbed-fieldset"));
-    if (fieldsets.length < 2) {
+    var inlineGroups = Array.prototype.slice.call(document.querySelectorAll(".inline-group.tabbed-inline-group"));
+    return fieldsets.concat(inlineGroups);
+  }
+
+  function initTabbedFieldsets() {
+    var sections = collectTabbedSections();
+    if (sections.length < 2) {
       return;
     }
 
-    var firstFieldset = fieldsets[0];
+    var firstSection = sections[0];
     var container = document.createElement("div");
     container.className = "shop-admin-tabs";
 
     function activate(index) {
-      fieldsets.forEach(function (fieldset, fieldsetIndex) {
-        fieldset.classList.toggle("is-hidden", fieldsetIndex !== index);
+      sections.forEach(function (section, sectionIndex) {
+        section.classList.toggle("is-hidden", sectionIndex !== index);
       });
       Array.prototype.forEach.call(container.querySelectorAll(".shop-admin-tabs__button"), function (button, buttonIndex) {
         button.classList.toggle("is-active", buttonIndex === index);
       });
     }
 
-    fieldsets.forEach(function (fieldset, index) {
-      var titleNode = fieldset.querySelector("h2");
+    sections.forEach(function (section, index) {
+      var titleNode = section.querySelector("h2, h3");
       var title = (titleNode && titleNode.textContent ? titleNode.textContent : "Section").trim();
       var button = document.createElement("button");
       button.type = "button";
@@ -31,7 +37,7 @@
       container.appendChild(button);
     });
 
-    firstFieldset.parentNode.insertBefore(container, firstFieldset);
+    firstSection.parentNode.insertBefore(container, firstSection);
     activate(0);
   }
 
