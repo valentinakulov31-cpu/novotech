@@ -90,7 +90,7 @@ class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelA
         )
         characteristics = (
             Characteristic.objects.filter(group=obj)
-            .annotate(values_count=Count("product_values"))
+            .annotate(values_count=Count("productcharacteristic"))
             .order_by("name", "id")
         )
         if not characteristics:

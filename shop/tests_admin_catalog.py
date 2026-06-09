@@ -15,6 +15,7 @@ from django.test.client import RequestFactory
 from django.urls import reverse
 from openpyxl import load_workbook
 
+from shop.admin_catalog_core_registry import GroupAdmin
 from shop.admin import (
     ProductAdmin,
     ProductCertificateAdminForm,
@@ -34,6 +35,40 @@ from shop.models import (
 )
 from shop.services import catalog_import_jobs as catalog_import_jobs_service
 from shop.tests_support import FakeRemoteResponse, TEST_GIF
+
+
+class GroupAdminChangePageTests(TestCase):
+    def setUp(self):
+        self.group = Group.objects.create(name="Admin group", slug="admin-group")
+        self.brand = Brand.objects.create(name="Admin brand", slug="admin-brand")
+        self.product = Product.objects.create(
+            sku="GROUP-ADMIN-1",
+            name="Admin product",
+            price=Decimal("10.00"),
+            currency="RUB",
+            group=self.group,
+            brand=self.brand,
+            available=True,
+        )
+        self.characteristic = Characteristic.objects.create(
+            group=self.group,
+            name="Admin characteristic",
+            slug="admin-characteristic",
+            data_type="text",
+        )
+        ProductCharacteristic.objects.create(
+            product=self.product,
+            characteristic=self.characteristic,
+            value="Admin value",
+        )
+
+    def test_group_characteristics_tab_counts_values(self):
+        admin = GroupAdmin(Group, AdminSite())
+
+        html = str(admin.characteristics_tab(self.group))
+
+        self.assertIn("Admin characteristic", html)
+        self.assertIn("admin-characteristic", html)
 
 
 class ProductExportAdminTests(TestCase):
