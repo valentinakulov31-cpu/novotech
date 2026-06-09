@@ -86,8 +86,8 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
             breadcrumbs,
             [
                 {"title": "Каталог", "url": "/catalog", "type": "catalog"},
-                {"title": parent_group.name, "url": f"/catalog/{parent_group.slug}", "type": "category"},
-                {"title": self.group.name, "url": f"/catalog/{self.group.slug}", "type": "subcategory"},
+                {"title": parent_group.name, "url": f"/group/{parent_group.slug}", "type": "category"},
+                {"title": self.group.name, "url": f"/group/{self.group.slug}", "type": "subcategory"},
                 {"title": self.product.brand.name, "url": f"/brand/{self.product.brand.slug}", "type": "brand"},
                 {"title": self.product.name, "url": None, "type": "product"},
             ],

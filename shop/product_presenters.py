@@ -53,7 +53,7 @@ def build_product_breadcrumbs(product: Product) -> list[dict]:
         breadcrumbs.append(
             {
                 "title": group.name,
-                "url": f"/catalog/{group.slug}",
+                "url": f"/group/{group.slug}",
                 "type": "category" if index == 0 else "subcategory",
             }
         )
