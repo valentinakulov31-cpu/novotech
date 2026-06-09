@@ -69,3 +69,26 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
         group_detail_data = group_detail.json()
         self.assertIn("seo", group_detail_data["category"])
         self.assertIn("seo", group_detail_data["products"][0])
+
+    def test_product_detail_includes_breadcrumbs_with_types(self):
+        parent_group = self.group.__class__.objects.create(name="Каталог раздел", slug="catalog-razdel")
+        self.group.parent = parent_group
+        self.group.save(update_fields=["parent"])
+        self.product.brand.name = "NOVATEH"
+        self.product.brand.slug = "novateh"
+        self.product.brand.save(update_fields=["name", "slug"])
+
+        response = self.client.get(reverse("products-detail", kwargs={"product_identifier": self.product.slug}))
+
+        self.assertEqual(response.status_code, 200)
+        breadcrumbs = response.json()["breadcrumbs"]
+        self.assertEqual(
+            breadcrumbs,
+            [
+                {"title": "Каталог", "url": "/catalog", "type": "catalog"},
+                {"title": parent_group.name, "url": f"/catalog/{parent_group.slug}", "type": "category"},
+                {"title": self.group.name, "url": f"/catalog/{self.group.slug}", "type": "subcategory"},
+                {"title": self.product.brand.name, "url": f"/brand/{self.product.brand.slug}", "type": "brand"},
+                {"title": self.product.name, "url": None, "type": "product"},
+            ],
+        )

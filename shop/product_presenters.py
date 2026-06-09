@@ -33,6 +33,50 @@ def serialize_public_product_summary(product: Product, city=None, *, group_slug=
     }
 
 
+def build_product_breadcrumbs(product: Product) -> list[dict]:
+    breadcrumbs = [
+        {
+            "title": "Каталог",
+            "url": "/catalog",
+            "type": "catalog",
+        }
+    ]
+
+    group_chain = []
+    current_group = product.group
+    while current_group is not None:
+        group_chain.append(current_group)
+        current_group = current_group.parent
+    group_chain.reverse()
+
+    for index, group in enumerate(group_chain):
+        breadcrumbs.append(
+            {
+                "title": group.name,
+                "url": f"/catalog/{group.slug}",
+                "type": "category" if index == 0 else "subcategory",
+            }
+        )
+
+    if product.brand:
+        breadcrumbs.append(
+            {
+                "title": product.brand.name,
+                "url": f"/brand/{product.brand.slug}",
+                "type": "brand",
+            }
+        )
+
+    breadcrumbs.append(
+        {
+            "title": product.name,
+            "url": None,
+            "type": "product",
+        }
+    )
+    return breadcrumbs
+
+
 def serialize_product_detail_payload(product: Product, city=None) -> dict:
     gallery_items = [
         {
@@ -102,4 +146,5 @@ def serialize_product_detail_payload(product: Product, city=None) -> dict:
             }
             for item in product.characteristics.select_related("characteristic").all()
         ],
+        "breadcrumbs": build_product_breadcrumbs(product),
     }
