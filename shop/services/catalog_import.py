@@ -255,6 +255,13 @@ def characteristic_header_from_name(name: str) -> str:
     return f"char_{normalized}"
 
 
+def characteristic_name_from_header(header: str) -> str:
+    normalized = str(header or "").strip().replace("\n", " ")
+    if normalized.lower().startswith("char_"):
+        normalized = normalized[5:]
+    return normalized.replace("_", " ").strip()
+
+
 def clean_optional_text(value):
     text = str(value or "").strip()
     return text or None
@@ -294,7 +301,7 @@ def resolve_shared_gallery(raw_value: str):
 
 
 def resolve_characteristic(group: Group, header: str, sample_value):
-    name = characteristic_header_from_name(header)[len("char_"):].replace("_", " ").strip()
+    name = characteristic_name_from_header(header)
     slug = transliterate_slug(name)
     characteristic = Characteristic.objects.filter(group=group, slug=slug).first()
     if characteristic:

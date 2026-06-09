@@ -254,6 +254,29 @@ class ProductExportAdminTests(TestCase):
             shutil.rmtree(media_root, ignore_errors=True)
             shutil.rmtree(source_dir, ignore_errors=True)
 
+    def test_import_strips_char_prefix_from_characteristic_names(self):
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.append(["sku", "name", "price", "currency", "group_slug", "brand_slug", "char_толщина_мкм"])
+        worksheet.append(["IMP-CHAR", "Imported characteristic product", "42.50", "RUB", "Import group", "Import brand", "25"])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+
+        counters, warnings = import_products_from_workbook(buffer)
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(counters["characteristics_created"], 1)
+        characteristic = Characteristic.objects.get(group__slug="import-group")
+        self.assertEqual(characteristic.name, "толщина мкм")
+        self.assertEqual(characteristic.slug, "tolschina-mkm")
+        self.assertEqual(
+            ProductCharacteristic.objects.get(product__sku="IMP-CHAR", characteristic=characteristic).value,
+            "25",
+        )
+
     def test_import_downloads_remote_media_to_local_storage(self):
         media_root = tempfile.mkdtemp()
         override = override_settings(MEDIA_ROOT=media_root)
