@@ -1,3 +1,5 @@
+import re
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -6,7 +8,7 @@ from shop.models import Characteristic, ProductCharacteristic
 
 
 class Command(BaseCommand):
-    help = "Remove duplicated 'char ' prefix from imported characteristic names and slugs."
+    help = "Remove duplicated 'char ' prefix and normalize spaces in imported characteristic names and slugs."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -21,9 +23,12 @@ class Command(BaseCommand):
         merged = 0
         skipped = 0
 
-        queryset = Characteristic.objects.filter(name__istartswith="char ").order_by("id")
+        queryset = Characteristic.objects.order_by("id")
         for characteristic in queryset:
-            clean_name = characteristic.name[5:].strip()
+            clean_name = self.clean_name(characteristic.name)
+            needs_cleanup = characteristic.name.lower().startswith("char ") or clean_name != characteristic.name
+            if not needs_cleanup:
+                continue
             if not clean_name:
                 skipped += 1
                 continue
@@ -70,3 +75,10 @@ class Command(BaseCommand):
                 f"Done. renamed={renamed}, merged={merged}, skipped={skipped}, dry_run={dry_run}"
             )
         )
+
+    @staticmethod
+    def clean_name(name: str) -> str:
+        clean_name = str(name or "").strip()
+        if clean_name.lower().startswith("char "):
+            clean_name = clean_name[5:].strip()
+        return re.sub(r"\s+", " ", clean_name).strip()

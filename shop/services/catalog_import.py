@@ -259,7 +259,8 @@ def characteristic_name_from_header(header: str) -> str:
     normalized = str(header or "").strip().replace("\n", " ")
     if normalized.lower().startswith("char_"):
         normalized = normalized[5:]
-    return normalized.replace("_", " ").strip()
+    normalized = normalized.replace("_", " ")
+    return re.sub(r"\s+", " ", normalized).strip()
 
 
 def clean_optional_text(value):
