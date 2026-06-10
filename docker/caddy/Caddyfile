@@ -29,7 +29,7 @@ nvt24.ru {
         respond 404
     }
 
-    @backend path /{$ADMIN_URL_PATH}* /tinymce* /v1*
+    @backend path /robots.txt /sitemap.xml /sitemap-*.xml /{$ADMIN_URL_PATH}* /tinymce* /v1*
     reverse_proxy @backend 127.0.0.1:8000
 
     reverse_proxy 127.0.0.1:3000
