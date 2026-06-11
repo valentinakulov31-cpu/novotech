@@ -10,6 +10,7 @@ from django.test.client import RequestFactory
 from django.urls import reverse
 
 from shop.admin import ContactInfoAdmin, HtmlContentAdmin, MediaLibraryAdmin, collect_media_library_assets, delete_media_asset
+from shop.admin_media_cleanup_support import collect_unused_media_file_entries, delete_unused_media_files
 from shop.models import Brand, ContactInfo, HtmlContent, MediaLibrary, News, Product, ProductMedia, PUBLISH_STATUS_DRAFT
 from shop.tests_support import TEST_GIF
 
@@ -169,3 +170,13 @@ class MediaLibraryAdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Библиотека медиа", response.rendered_content)
         self.assertIn("Удалить везде", response.rendered_content)
+
+    def test_delete_unused_media_files_keeps_referenced_brand_asset(self):
+        unused_before = collect_unused_media_file_entries()
+
+        self.assertFalse(any(item["url"] == "/static/admin_uploads/brands/shared.jpg" for item in unused_before))
+
+        deleted_count = delete_unused_media_files()
+
+        self.assertEqual(deleted_count, 0)
+        self.assertTrue(self.shared_storage_path.exists())

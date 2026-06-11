@@ -175,6 +175,52 @@ def collect_unused_media_file_entries():
         for value in model.objects.exclude(storage_path__in=["", None]).values_list("storage_path", flat=True):
             referenced_paths.add(str(resolve_media_storage_path(storage_path=value)))
 
+    for value in Brand.objects.exclude(media__in=["", None]).values_list("media", flat=True):
+        resolved = resolve_media_storage_path(url=value)
+        if resolved:
+            referenced_paths.add(str(resolved))
+
+    for value in Group.objects.exclude(media__in=["", None]).values_list("media", flat=True):
+        resolved = resolve_media_storage_path(url=value)
+        if resolved:
+            referenced_paths.add(str(resolved))
+
+    for value in Slider.objects.exclude(image__in=["", None]).values_list("image", flat=True):
+        resolved = resolve_media_storage_path(url=value)
+        if resolved:
+            referenced_paths.add(str(resolved))
+
+    for media_value in Product.objects.exclude(media__isnull=True).values_list("media", flat=True):
+        if isinstance(media_value, list):
+            for item in media_value:
+                resolved = resolve_media_storage_path(url=item)
+                if resolved:
+                    referenced_paths.add(str(resolved))
+        else:
+            resolved = resolve_media_storage_path(url=media_value)
+            if resolved:
+                referenced_paths.add(str(resolved))
+
+    for media_value in News.objects.exclude(media__isnull=True).values_list("media", flat=True):
+        if isinstance(media_value, list):
+            for item in media_value:
+                resolved = resolve_media_storage_path(url=item)
+                if resolved:
+                    referenced_paths.add(str(resolved))
+        else:
+            resolved = resolve_media_storage_path(url=media_value)
+            if resolved:
+                referenced_paths.add(str(resolved))
+
+    for match_q in (
+        Q(url__startswith=settings.MEDIA_URL),
+        Q(storage_path__startswith=str(uploads_root)),
+    ):
+        for value in MediaLibrary.objects.filter(match_q).exclude(storage_path__in=["", None]).values_list("storage_path", flat=True):
+            resolved = resolve_media_storage_path(storage_path=value)
+            if resolved:
+                referenced_paths.add(str(resolved))
+
     results = []
     for file_path in uploads_root.rglob("*"):
         if not file_path.is_file():
