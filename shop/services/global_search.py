@@ -44,6 +44,20 @@ def _serialize_token_groups_for_debug(token_groups):
     return groups
 
 
+def _sort_products_for_navigation(products, top_group=None, top_brand=None):
+    def sort_key(product):
+        return (
+            0 if top_brand and product.brand_id == top_brand.id else 1,
+            0 if top_group and product.group_id == top_group.id else 1,
+            -(float(getattr(product, "search_rank", 0.0) or 0.0)),
+            -(float(getattr(product, "search_similarity", 0.0) or 0.0)),
+            getattr(product, "name", ""),
+            product.id,
+        )
+
+    return sorted(products, key=sort_key)
+
+
 def build_global_search_payload(query: str, city_slug: str | None = None, debug: bool = False) -> dict:
     query = (query or "").strip()
     city = resolve_city(city_slug=city_slug)
@@ -69,18 +83,6 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
     group_fields = ["search_index"]
     brand_fields = ["search_index"]
     characteristic_fields = ["search_index"]
-
-    products = (
-        apply_ranked_search(
-            Product.objects.select_related("group", "brand"),
-            query,
-            exact_fields=product_fields,
-            fuzzy_fields=product_fields,
-            require_all_tokens=True,
-        )
-        .distinct()
-        .order_by("-search_rank", "-search_similarity", "name")[:30]
-    )
 
     groups = (
         apply_ranked_search(
@@ -124,6 +126,19 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
         mode = "group"
     elif top_brand:
         mode = "brand"
+
+    products = list(
+        apply_ranked_search(
+            Product.objects.select_related("group", "brand"),
+            query,
+            exact_fields=product_fields,
+            fuzzy_fields=product_fields,
+            require_all_tokens=True,
+        )
+        .distinct()
+        .order_by("-search_rank", "-search_similarity", "name")[:30]
+    )
+    products = _sort_products_for_navigation(products, top_group=top_group, top_brand=top_brand)
 
     payload = {
         "query": query,

@@ -132,6 +132,7 @@ class GlobalSearchFuzzyTests(TestCase):
         returned_skus = [item["sku"] for item in data["results"]["products"]]
         self.assertIn(exact_product.sku, returned_skus)
         self.assertNotIn(partial_product.sku, returned_skus)
+        self.assertEqual(returned_skus[0], exact_product.sku)
         self.assertEqual(data["debug"]["token_groups"], [["k-"]])
 
 
