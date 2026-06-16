@@ -1,4 +1,5 @@
-from shop.filtering import apply_ranked_search, tokenize_query
+from shop.filtering import apply_ranked_search, tokenize_query, tokenize_query_groups
+from shop.model_utils import normalize_search_token
 from shop.models import Brand, Characteristic, Group, Product
 from shop.search_presenters import (
     serialize_brand,
@@ -9,12 +10,43 @@ from shop.search_presenters import (
 from shop.seo import resolve_city
 
 
-def build_global_search_payload(query: str, city_slug: str | None = None) -> dict:
+def _serialize_search_debug_items(queryset):
+    items = []
+    for item in queryset:
+        items.append(
+            {
+                "id": item.id,
+                "name": getattr(item, "name", ""),
+                "slug": getattr(item, "slug", ""),
+                "search_rank": float(getattr(item, "search_rank", 0.0) or 0.0),
+                "search_similarity": float(getattr(item, "search_similarity", 0.0) or 0.0),
+                "search_exact_score": int(getattr(item, "search_exact_score", 0) or 0),
+            }
+        )
+    return items
+
+
+def _serialize_token_groups_for_debug(token_groups):
+    groups = []
+    for variants in token_groups:
+        filtered = []
+        for variant in variants:
+            normalized = normalize_search_token(variant)
+            if len(normalized) < 2 and normalized.isalpha():
+                continue
+            filtered.append(variant)
+        if filtered:
+            groups.append(filtered)
+    return groups
+
+
+def build_global_search_payload(query: str, city_slug: str | None = None, debug: bool = False) -> dict:
     query = (query or "").strip()
     city = resolve_city(city_slug=city_slug)
     tokens = tokenize_query(query)
+    token_groups = tokenize_query_groups(query)
     if not tokens:
-        return {
+        payload = {
             "query": query,
             "tokens": [],
             "navigation": {"group": None, "brand": None, "mode": None},
@@ -25,6 +57,9 @@ def build_global_search_payload(query: str, city_slug: str | None = None) -> dic
                 "characteristics": [],
             },
         }
+        if debug:
+            payload["debug"] = {"token_groups": []}
+        return payload
 
     product_fields = ["search_index"]
     group_fields = ["search_index"]
@@ -86,7 +121,7 @@ def build_global_search_payload(query: str, city_slug: str | None = None) -> dic
     elif top_brand:
         mode = "brand"
 
-    return {
+    payload = {
         "query": query,
         "tokens": tokens,
         "navigation": {
@@ -101,3 +136,12 @@ def build_global_search_payload(query: str, city_slug: str | None = None) -> dic
             "characteristics": [serialize_characteristic(characteristic, city=city) for characteristic in characteristics],
         },
     }
+    if debug:
+        payload["debug"] = {
+            "token_groups": _serialize_token_groups_for_debug(token_groups),
+            "products": _serialize_search_debug_items(products[:10]),
+            "groups": _serialize_search_debug_items(groups[:10]),
+            "brands": _serialize_search_debug_items(brands[:10]),
+            "characteristics": _serialize_search_debug_items(characteristics[:10]),
+        }
+    return payload

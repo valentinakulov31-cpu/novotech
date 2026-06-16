@@ -66,6 +66,13 @@ class GlobalSearchFuzzyTests(TestCase):
         self.assertEqual(len(product_ids), len(set(product_ids)))
 
 
+    def test_global_search_ignores_single_character_variant_from_hyphenated_query(self):
+        response = self.client.get(reverse("global-search"), {"q": "k-flex"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(any(item["sku"] == "FUZZY-1" for item in data["results"]["products"]))
+
+
 class IsAdminPermissionTests(TestCase):
     def test_staff_user_passes_permission(self):
         request = RequestFactory().get("/admin-only")
@@ -98,6 +105,21 @@ class SearchTokenizationTests(TestCase):
         self.assertIn("govno", tokens)
         self.assertNotIn("item", tokens)
         self.assertFalse(any(token.startswith("item-") for token in tokens))
+
+    def test_global_search_debug_payload_filters_single_character_variant_for_hyphenated_term(self):
+        client = APIClient()
+        response = client.get(reverse("global-search"), {"q": "k-flex", "debug": "1"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("debug", data)
+        self.assertEqual(data["debug"]["token_groups"], [["k-flex", "flex", "kflex"]])
+
+    def test_tokenize_query_keeps_original_variants_for_hyphenated_term(self):
+        tokens = tokenize_query("k-flex")
+        self.assertIn("k-flex", tokens)
+        self.assertIn("k", tokens)
+        self.assertIn("flex", tokens)
+        self.assertIn("kflex", tokens)
 
     def test_fuzzy_match_rejects_loose_cyrillic_false_positive(self):
         self.assertFalse(_word_matches_variant("главнае", "гавна"))

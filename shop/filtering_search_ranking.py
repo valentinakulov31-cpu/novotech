@@ -11,7 +11,14 @@ SEARCH_FUZZY_THRESHOLD = 0.18
 PYTHON_FUZZY_RATIO_THRESHOLD = 0.78
 
 
+def _is_ignorable_variant(value):
+    normalized = normalize_search_token(value)
+    return len(normalized) < 2 and normalized.isalpha()
+
+
 def any_field_matches(token, fields):
+    if _is_ignorable_variant(token):
+        return Q()
     token_query = Q()
     for field in fields:
         token_query |= Q(**{f"{field}__icontains": token})
@@ -40,7 +47,11 @@ def token_group_match_query(token_groups, fields, require_all=True):
     for variants in token_groups:
         group_query = Q()
         for token in variants:
+            if _is_ignorable_variant(token):
+                continue
             group_query |= any_field_matches(token, fields)
+        if not group_query:
+            continue
         queries.append(group_query)
     query = Q()
     for group_query in queries:
@@ -68,7 +79,11 @@ def score_group_expression(token_groups, fields):
     for variants in token_groups:
         group_query = Q()
         for token in variants:
+            if _is_ignorable_variant(token):
+                continue
             group_query |= any_field_matches(token, fields)
+        if not group_query:
+            continue
         score += Case(
             When(group_query, then=Value(1)),
             default=Value(0),
@@ -116,6 +131,8 @@ def _word_matches_variant(word, variant):
 def _fuzzy_group_score(candidate_words, variants):
     best_score = 0.0
     for variant in variants:
+        if _is_ignorable_variant(variant):
+            continue
         normalized_variant = normalize_search_token(variant)
         if not normalized_variant:
             continue
