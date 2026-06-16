@@ -103,6 +103,37 @@ class GlobalSearchFuzzyTests(TestCase):
         self.assertIn(partial_product.sku, returned_skus)
         self.assertLess(returned_skus.index(exact_product.sku), returned_skus.index(partial_product.sku))
 
+    def test_global_search_keeps_trailing_hyphen_prefix_as_meaningful_token(self):
+        exact_brand = Brand.objects.create(name="K-FLEX", slug="k-flex-prefix")
+        partial_brand = Brand.objects.create(name="Acoustic Group", slug="acoustic-group-prefix")
+        exact_product = Product.objects.create(
+            sku="KPREFIX-1",
+            name="K-FLEX ST",
+            slug="k-flex-st-prefix",
+            price=Decimal("100.00"),
+            currency="RUB",
+            brand=exact_brand,
+            available=True,
+        )
+        partial_product = Product.objects.create(
+            sku="APREFIX-1",
+            name="Acoustic Floor Mat 29",
+            slug="acoustic-floor-mat-29-prefix",
+            price=Decimal("100.00"),
+            currency="RUB",
+            brand=partial_brand,
+            available=True,
+        )
+
+        response = self.client.get(reverse("global-search"), {"q": "k-", "debug": "1"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        returned_skus = [item["sku"] for item in data["results"]["products"]]
+        self.assertIn(exact_product.sku, returned_skus)
+        self.assertNotIn(partial_product.sku, returned_skus)
+        self.assertEqual(data["debug"]["token_groups"], [["k-"]])
+
 
 class IsAdminPermissionTests(TestCase):
     def test_staff_user_passes_permission(self):

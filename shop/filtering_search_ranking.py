@@ -12,6 +12,9 @@ PYTHON_FUZZY_RATIO_THRESHOLD = 0.78
 
 
 def _is_ignorable_variant(value):
+    raw_value = str(value or "").strip()
+    if len(raw_value) >= 2 and any(not char.isalnum() for char in raw_value):
+        return False
     normalized = normalize_search_token(value)
     return len(normalized) < 2 and normalized.isalpha()
 

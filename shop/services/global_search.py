@@ -31,6 +31,10 @@ def _serialize_token_groups_for_debug(token_groups):
     for variants in token_groups:
         filtered = []
         for variant in variants:
+            raw_variant = str(variant or "").strip()
+            if len(raw_variant) >= 2 and any(not char.isalnum() for char in raw_variant):
+                filtered.append(variant)
+                continue
             normalized = normalize_search_token(variant)
             if len(normalized) < 2 and normalized.isalpha():
                 continue
