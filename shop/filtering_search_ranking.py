@@ -16,6 +16,22 @@ def _is_ignorable_variant(value):
     return len(normalized) < 2 and normalized.isalpha()
 
 
+def _variant_weight(variant, group_variants):
+    normalized_variant = normalize_search_token(variant)
+    if not normalized_variant:
+        return 0
+
+    primary_variant = group_variants[0] if group_variants else ""
+    normalized_primary = normalize_search_token(primary_variant)
+    if variant == primary_variant:
+        return 8
+    if normalized_variant == normalized_primary:
+        return 6
+    if len(normalized_variant) >= 4:
+        return 2
+    return 1
+
+
 def any_field_matches(token, fields):
     if _is_ignorable_variant(token):
         return Q()
@@ -77,18 +93,23 @@ def score_expression(tokens, fields):
 def score_group_expression(token_groups, fields):
     score = Value(0, output_field=IntegerField())
     for variants in token_groups:
-        group_query = Q()
+        group_score = Value(0, output_field=IntegerField())
+        has_weighted_variants = False
         for token in variants:
             if _is_ignorable_variant(token):
                 continue
-            group_query |= any_field_matches(token, fields)
-        if not group_query:
+            weight = _variant_weight(token, variants)
+            if weight <= 0:
+                continue
+            has_weighted_variants = True
+            group_score += Case(
+                When(any_field_matches(token, fields), then=Value(weight)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        if not has_weighted_variants:
             continue
-        score += Case(
-            When(group_query, then=Value(1)),
-            default=Value(0),
-            output_field=IntegerField(),
-        )
+        score += group_score
     return score
 
 

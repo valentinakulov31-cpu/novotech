@@ -72,6 +72,37 @@ class GlobalSearchFuzzyTests(TestCase):
         data = response.json()
         self.assertFalse(any(item["sku"] == "FUZZY-1" for item in data["results"]["products"]))
 
+    def test_global_search_prefers_full_hyphenated_match_over_partial_tail_match(self):
+        exact_brand = Brand.objects.create(name="K-FLEX", slug="k-flex")
+        partial_brand = Brand.objects.create(name="Acoustic Group", slug="acoustic-group")
+        exact_product = Product.objects.create(
+            sku="KFLEX-1",
+            name="K-FLEX ST",
+            slug="k-flex-st",
+            price=Decimal("100.00"),
+            currency="RUB",
+            brand=exact_brand,
+            available=True,
+        )
+        partial_product = Product.objects.create(
+            sku="FLEX-1",
+            name="FLEXAKUSTIK PIR-50",
+            slug="flexakustik-pir-50",
+            price=Decimal("100.00"),
+            currency="RUB",
+            brand=partial_brand,
+            available=True,
+        )
+
+        response = self.client.get(reverse("global-search"), {"q": "k-flex", "debug": "1"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        returned_skus = [item["sku"] for item in data["results"]["products"]]
+        self.assertIn(exact_product.sku, returned_skus)
+        self.assertIn(partial_product.sku, returned_skus)
+        self.assertLess(returned_skus.index(exact_product.sku), returned_skus.index(partial_product.sku))
+
 
 class IsAdminPermissionTests(TestCase):
     def test_staff_user_passes_permission(self):
