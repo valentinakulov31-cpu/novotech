@@ -41,6 +41,23 @@ nvt24.ru {
     reverse_proxy 127.0.0.1:3000
 }
 
+http://nvt24.ru, http://www.nvt24.ru {
+    @yandex_verification path /yandex_71cca7adca0a511c.html
+    handle @yandex_verification {
+        header Content-Type "text/html; charset=UTF-8"
+        respond "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"></head><body>Verification: 71cca7adca0a511c</body></html>" 200
+    }
+
+    @robots path /robots.txt
+    handle @robots {
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    handle {
+        redir https://nvt24.ru{uri} permanent
+    }
+}
+
 www.nvt24.ru {
     encode zstd gzip
 
@@ -50,5 +67,7 @@ www.nvt24.ru {
         respond "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"></head><body>Verification: 71cca7adca0a511c</body></html>" 200
     }
 
-    redir https://nvt24.ru{uri} permanent
+    handle {
+        redir https://nvt24.ru{uri} permanent
+    }
 }
