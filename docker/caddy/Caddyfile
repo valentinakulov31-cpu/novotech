@@ -50,7 +50,15 @@ http://nvt24.ru, http://www.nvt24.ru {
 
     @robots path /robots.txt
     handle @robots {
-        reverse_proxy 127.0.0.1:8000
+        header Content-Type "text/plain; charset=utf-8"
+        respond "User-agent: *
+Allow: /
+Disallow: /v1/
+Disallow: /tinymce/
+Disallow: /django-static/admin/
+Disallow: /control-39h6umropjqw0e2sankx1lzd/
+Sitemap: https://nvt24.ru/sitemap.xml
+" 200
     }
 
     handle {
