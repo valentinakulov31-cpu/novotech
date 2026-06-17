@@ -29,6 +29,12 @@ nvt24.ru {
         respond 404
     }
 
+    @yandex_verification path /yandex_71cca7adca0a511c.html
+    handle @yandex_verification {
+        header Content-Type "text/html; charset=UTF-8"
+        respond "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"></head><body>Verification: 71cca7adca0a511c</body></html>" 200
+    }
+
     @backend path /robots.txt /sitemap.xml /sitemap-*.xml /{$ADMIN_URL_PATH}* /tinymce* /v1*
     reverse_proxy @backend 127.0.0.1:8000
 
