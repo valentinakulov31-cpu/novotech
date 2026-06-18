@@ -116,7 +116,13 @@ def split_title_values(value):
             continue
         current = parts[0]
         for part in parts[1:]:
-            if part[:1].isupper() or part[:1].isdigit():
+            first_word = part.split(maxsplit=1)[0].lower()
+            starts_new_title = (
+                part[:1].isupper()
+                or part[:1].isdigit()
+                or first_word in {"installation", "brochure", "catalog", "catalogue", "quality"}
+            )
+            if starts_new_title:
                 items.append(current.strip())
                 current = part
             else:
