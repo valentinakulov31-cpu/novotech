@@ -134,6 +134,9 @@ def save_local_file_path(source_path: Path, folder_name: str) -> dict:
     target_dir = media_root / "admin_uploads" / folder_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
+    if source_path.stat().st_size <= 0:
+        raise ValidationError(f"Imported file is empty: {source_path}")
+
     storage_path = target_dir / f"{uuid.uuid4().hex}{source_path.suffix}"
     shutil.copyfile(source_path, storage_path)
 
@@ -189,6 +192,10 @@ def save_remote_file_url(url: str, folder_name: str) -> dict:
                     raise ValidationError(f"Удалённый файл больше {REMOTE_IMPORT_MAX_BYTES // 1024 // 1024} МБ: {url}")
                 destination.write(chunk)
 
+    if storage_path.stat().st_size <= 0:
+        storage_path.unlink(missing_ok=True)
+        raise ValidationError(f"Remote file is empty: {url}")
+
     relative_path = storage_path.relative_to(media_root).as_posix()
     mime_type = mimetypes.guess_type(original_name)[0] or mimetypes.guess_type(str(storage_path))[0] or "application/octet-stream"
     return {
@@ -218,13 +225,17 @@ def resolve_import_file_reference(value, folder_name: str):
 
     if is_probable_url(text):
         mime_type = mimetypes.guess_type(urlparse(text).path)[0] or "application/octet-stream"
-        storage_path = ""
         if text.startswith(str(settings.MEDIA_URL)):
             relative_path = text[len(str(settings.MEDIA_URL)):].lstrip("/")
             candidate_path = Path(settings.MEDIA_ROOT) / relative_path
-            if candidate_path.exists():
-                storage_path = str(candidate_path)
-        size_bytes = Path(storage_path).stat().st_size if storage_path and Path(storage_path).exists() else 0
+            if not candidate_path.exists() or not candidate_path.is_file():
+                return None, f"local media URL points to a missing file: {text}"
+            size_bytes = candidate_path.stat().st_size
+            if size_bytes <= 0:
+                return None, f"local media URL points to an empty file: {text}"
+            storage_path = str(candidate_path)
+        else:
+            return None, f"unsupported file URL: {text}"
         return {
             "storage_path": storage_path,
             "url": text,

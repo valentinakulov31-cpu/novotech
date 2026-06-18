@@ -200,6 +200,8 @@ class ProductExportAdminTests(TestCase):
             image_path = Path(source_dir) / "preview.jpg"
             image_path.write_bytes(TEST_GIF)
             document_url = "/static/certificate.pdf"
+            certificate_path = Path(media_root) / "certificate.pdf"
+            certificate_path.write_bytes(TEST_GIF)
 
             from openpyxl import Workbook
 
@@ -248,6 +250,8 @@ class ProductExportAdminTests(TestCase):
             self.assertTrue(media.url.startswith("/static/admin_uploads/product_media/"))
             self.assertTrue(Path(media.storage_path).exists())
             self.assertEqual(certificate.url, document_url)
+            self.assertEqual(certificate.size_bytes, len(TEST_GIF))
+            self.assertEqual(Path(certificate.storage_path).read_bytes(), TEST_GIF)
             self.assertEqual(certificate.title, "Certificate link")
         finally:
             override.disable()
@@ -318,6 +322,86 @@ class ProductExportAdminTests(TestCase):
             self.assertTrue(Path(media.storage_path).exists())
             self.assertEqual(Path(media.storage_path).read_bytes(), TEST_GIF)
             self.assertEqual(product.media, [media.url])
+        finally:
+            override.disable()
+            shutil.rmtree(media_root, ignore_errors=True)
+
+    def test_import_downloads_remote_certificate_to_local_storage(self):
+        media_root = tempfile.mkdtemp()
+        override = override_settings(MEDIA_ROOT=media_root)
+        override.enable()
+        try:
+            from openpyxl import Workbook
+
+            workbook = Workbook()
+            worksheet = workbook.active
+            worksheet.append(["sku", "name", "price", "currency", "certificate_urls", "certificate_titles"])
+            worksheet.append([
+                "IMP-REMOTE-CERT",
+                "Imported remote certificate product",
+                "55.00",
+                "RUB",
+                "https://cdn.example.com/certificate.pdf",
+                "Remote certificate",
+            ])
+            buffer = BytesIO()
+            workbook.save(buffer)
+            buffer.seek(0)
+
+            fake_response = FakeRemoteResponse(
+                TEST_GIF,
+                headers={
+                    "Content-Length": str(len(TEST_GIF)),
+                    "Content-Disposition": 'attachment; filename="certificate.pdf"',
+                },
+            )
+            with patch("shop.services.catalog_import.urlopen", return_value=fake_response):
+                counters, warnings = import_products_from_workbook(buffer)
+
+            product = Product.objects.get(sku="IMP-REMOTE-CERT")
+            certificate = ProductCertificate.objects.get(product=product)
+
+            self.assertEqual(warnings, [])
+            self.assertEqual(counters["certificates_imported"], 1)
+            self.assertTrue(certificate.url.startswith("/static/admin_uploads/product_certificates/"))
+            self.assertNotEqual(certificate.url, "https://cdn.example.com/certificate.pdf")
+            self.assertTrue(Path(certificate.storage_path).exists())
+            self.assertEqual(Path(certificate.storage_path).read_bytes(), TEST_GIF)
+            self.assertEqual(certificate.size_bytes, len(TEST_GIF))
+        finally:
+            override.disable()
+            shutil.rmtree(media_root, ignore_errors=True)
+
+    def test_import_skips_missing_local_certificate_url(self):
+        media_root = tempfile.mkdtemp()
+        override = override_settings(MEDIA_ROOT=media_root)
+        override.enable()
+        try:
+            from openpyxl import Workbook
+
+            workbook = Workbook()
+            worksheet = workbook.active
+            worksheet.append(["sku", "name", "price", "currency", "certificate_urls", "certificate_titles"])
+            worksheet.append([
+                "IMP-MISSING-CERT",
+                "Imported missing certificate product",
+                "55.00",
+                "RUB",
+                "/static/admin_uploads/product_certificates/missing.pdf",
+                "Missing certificate",
+            ])
+            buffer = BytesIO()
+            workbook.save(buffer)
+            buffer.seek(0)
+
+            counters, warnings = import_products_from_workbook(buffer)
+
+            product = Product.objects.get(sku="IMP-MISSING-CERT")
+            self.assertFalse(ProductCertificate.objects.filter(product=product).exists())
+            self.assertEqual(counters["certificates_imported"], 0)
+            self.assertEqual(len(warnings), 1)
+            self.assertEqual(warnings[0]["code"], "certificate_skipped")
+            self.assertIn("missing file", warnings[0]["message"])
         finally:
             override.disable()
             shutil.rmtree(media_root, ignore_errors=True)
