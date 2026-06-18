@@ -101,8 +101,28 @@ def split_media_urls(value):
 
 
 def split_title_values(value):
-    items = split_media_urls(value)
-    return items or []
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+
+    items = []
+    for chunk in re.split(r"[\n;]+", str(value)):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        parts = [part.strip() for part in chunk.split(",") if part.strip()]
+        if not parts:
+            continue
+        current = parts[0]
+        for part in parts[1:]:
+            if part[:1].isupper() or part[:1].isdigit():
+                items.append(current.strip())
+                current = part
+            else:
+                current = f"{current}, {part}"
+        items.append(current.strip())
+    return items
 
 
 def is_probable_url(value: str | None) -> bool:

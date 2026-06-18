@@ -34,6 +34,7 @@ from shop.models import (
     ProductMedia,
 )
 from shop.services import catalog_import_jobs as catalog_import_jobs_service
+from shop.services.catalog_import import split_title_values
 from shop.tests_support import FakeRemoteResponse, TEST_GIF
 
 
@@ -257,6 +258,19 @@ class ProductExportAdminTests(TestCase):
             override.disable()
             shutil.rmtree(media_root, ignore_errors=True)
             shutil.rmtree(source_dir, ignore_errors=True)
+
+    def test_split_title_values_keeps_commas_inside_title(self):
+        self.assertEqual(
+            split_title_values(
+                "Пароизоляция для кровель, стен и потолка, Сертификат соответствия № 00973/23, "
+                "Каркасные конструкции стен"
+            ),
+            [
+                "Пароизоляция для кровель, стен и потолка",
+                "Сертификат соответствия № 00973/23",
+                "Каркасные конструкции стен",
+            ],
+        )
 
     def test_import_strips_char_prefix_from_characteristic_names(self):
         from openpyxl import Workbook
