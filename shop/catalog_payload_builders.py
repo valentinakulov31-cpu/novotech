@@ -30,7 +30,7 @@ def build_group_tree(groups, city=None):
 
 
 def build_group_with_products_payload(group, *, city=None):
-    products = Product.objects.filter(group=group)
+    products = Product.objects.filter(group=group, is_hidden=False)
     products_list = [
         serialize_public_product_summary(product, city=city, group_slug=group.slug)
         for product in products
@@ -42,7 +42,7 @@ def build_group_with_products_payload(group, *, city=None):
 
 
 def build_brand_grouped_products_payload(brand, *, city=None):
-    products = Product.objects.filter(brand=brand).select_related("group")
+    products = Product.objects.filter(brand=brand, is_hidden=False).select_related("group")
     grouped = {}
     for product in products:
         if product.group:

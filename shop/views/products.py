@@ -85,7 +85,7 @@ class ProductListView(ListAPIView):
     def get_queryset(self):
         payload = build_filter_payload_from_query_params(self.request.query_params)
         queryset = apply_catalog_filters(
-            Product.objects.select_related('group', 'brand', 'shared_gallery').prefetch_related(
+            Product.objects.filter(is_hidden=False).select_related('group', 'brand', 'shared_gallery').prefetch_related(
                 'media_files',
                 'gallery_items',
                 'certificates',
@@ -112,7 +112,7 @@ class ProductFilterView(APIView):
         city_slug = (payload.get("context") or {}).get("city_slug") or payload.get("city_slug")
         city = resolve_city_slug(city_slug) if city_slug else resolve_request_city(request, query_param="city_slug")
         queryset = apply_catalog_filters(
-            Product.objects.select_related('group', 'brand', 'shared_gallery').prefetch_related(
+            Product.objects.filter(is_hidden=False).select_related('group', 'brand', 'shared_gallery').prefetch_related(
                 'media_files',
                 'gallery_items',
                 'certificates',
@@ -190,6 +190,6 @@ class ProductUpdateView(UpdateAPIView):
         responses={200: ProductSerializer}
     )
     def put(self, request, product_identifier):
-        product = get_product_by_identifier(product_identifier)
+        product = get_product_by_identifier(product_identifier, include_hidden=True)
         update_instance_from_request(product, ProductCreateSerializer, request)
         return Response(ProductSerializer(product).data)

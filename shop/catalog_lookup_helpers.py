@@ -4,7 +4,7 @@ from django.shortcuts import get_object_or_404
 from shop.models import Brand, Group, Product
 
 
-def get_product_by_identifier(product_identifier):
+def get_product_by_identifier(product_identifier, *, include_hidden=False):
     lookup = Q(slug=product_identifier)
     if str(product_identifier).isdigit():
         lookup |= Q(id=int(product_identifier))
@@ -15,6 +15,8 @@ def get_product_by_identifier(product_identifier):
         "characteristics__characteristic",
         "shared_gallery__items",
     )
+    if not include_hidden:
+        queryset = queryset.filter(is_hidden=False)
     return get_object_or_404(queryset, lookup)
 
 

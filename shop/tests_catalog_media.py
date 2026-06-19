@@ -1,5 +1,6 @@
 from django.urls import reverse
 
+from shop.models import Product
 from shop.tests_catalog_support import CatalogApiFixtureBase
 
 
@@ -24,6 +25,27 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
         self.assertEqual(data[0]["media_list"][0]["media_kind"], "image")
         self.assertEqual(data[0]["certificates_list"][0]["url"], "/static/certificate.pdf")
         self.assertEqual(data[0]["assortment_html"], "<p><strong>Р С’РЎРѓРЎРѓР С•РЎР‚РЎвЂљР С‘Р СР ВµР Р…РЎвЂљ:</strong> РЎвЂ Р С‘Р В»Р С‘Р Р…Р Т‘РЎР‚РЎвЂ№, Р СР В°РЎвЂљРЎвЂ№</p>")
+
+    def test_hidden_products_are_not_publicly_visible(self):
+        hidden_product = Product.objects.create(
+            sku="HIDDEN-1",
+            slug="hidden-product",
+            name="Hidden product",
+            price="10.00",
+            currency="RUB",
+            group=self.group,
+            brand=self.brand,
+            available=True,
+            is_hidden=True,
+        )
+
+        list_response = self.client.get(reverse("products-list"), {"group_id": self.group.id})
+        self.assertEqual(list_response.status_code, 200)
+        returned_slugs = [item["slug"] for item in list_response.json()]
+        self.assertNotIn(hidden_product.slug, returned_slugs)
+
+        detail_response = self.client.get(reverse("products-detail", kwargs={"product_identifier": hidden_product.slug}))
+        self.assertEqual(detail_response.status_code, 404)
 
     def test_public_media_payload_does_not_expose_storage_paths(self):
         response = self.client.get(reverse("products-detail", kwargs={"product_identifier": self.product.slug}))

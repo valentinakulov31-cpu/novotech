@@ -9,7 +9,10 @@ from shop.models import Product, ProductCharacteristic
 def build_catalog_base_queryset(payload, queryset=None, exclude=None):
     payload = normalize_catalog_payload(payload)
     exclude = exclude or {}
-    queryset = queryset or Product.objects.all()
+    if queryset is None:
+        queryset = Product.objects.filter(is_hidden=False)
+    if not exclude.get("hidden"):
+        queryset = queryset.filter(is_hidden=False)
     context = payload["context"]
     filters = payload["filters"]
 

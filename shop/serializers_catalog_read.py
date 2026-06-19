@@ -88,6 +88,7 @@ class ProductSerializer(SeoContextSerializerMixin, serializers.ModelSerializer):
             "brand_id",
             "media",
             "available",
+            "is_hidden",
             "seo",
             "gallery",
             "media_list",

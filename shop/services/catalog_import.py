@@ -539,6 +539,7 @@ def import_products_from_workbook(workbook_file):
                 "brand": brand,
                 "shared_gallery": shared_gallery,
                 "available": parse_bool(payload.get("available")),
+                "is_hidden": parse_bool(payload.get("is_hidden")) if "is_hidden" in payload else False,
             }
             for field_name in PRODUCT_OPTIONAL_IMPORT_FIELDS:
                 if field_name in payload:
@@ -647,6 +648,7 @@ def build_product_export_rows(products_queryset):
         "brand_slug",
         "shared_gallery_slug",
         "available",
+        "is_hidden",
         "media_urls",
         "gallery_urls",
         "gallery_titles",
@@ -682,6 +684,7 @@ def build_product_export_rows(products_queryset):
                 product.brand.name if product.brand else "",
                 product.shared_gallery.slug if product.shared_gallery else "",
                 "Да" if product.available else "Нет",
+                "Да" if product.is_hidden else "Нет",
                 ",".join(product_media_urls or (product.media or [])),
                 ",".join(item.url for item in product.gallery_items.all()),
                 ",".join(item.title or "" for item in product.gallery_items.all()),

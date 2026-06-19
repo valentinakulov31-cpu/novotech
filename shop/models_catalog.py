@@ -137,6 +137,7 @@ class Product(models.Model):
     )
     media = models.JSONField(null=True, blank=True)
     available = models.BooleanField(default=True)
+    is_hidden = models.BooleanField(default=False)
     search_tsv = models.TextField("Search synonyms", null=True, blank=True)
     search_index = models.TextField(default="", blank=True)
     seo_title = models.CharField(max_length=255, null=True, blank=True)

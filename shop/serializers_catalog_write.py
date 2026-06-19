@@ -51,6 +51,7 @@ class ProductCreateSerializer(serializers.Serializer):
     brand_id = serializers.IntegerField(required=False, allow_null=True)
     media = serializers.JSONField(required=False, allow_null=True)
     available = serializers.BooleanField(default=True)
+    is_hidden = serializers.BooleanField(default=False)
     seo_title = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     seo_h1 = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     seo_description = serializers.CharField(required=False, allow_null=True, allow_blank=True)

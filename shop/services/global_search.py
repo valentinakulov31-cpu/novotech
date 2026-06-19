@@ -129,7 +129,7 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
 
     products = list(
         apply_ranked_search(
-            Product.objects.select_related("group", "brand"),
+            Product.objects.filter(is_hidden=False).select_related("group", "brand"),
             query,
             exact_fields=product_fields,
             fuzzy_fields=product_fields,

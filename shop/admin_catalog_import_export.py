@@ -21,10 +21,10 @@ from shop.services import media_assets as media_assets_service
 class ProductAdminImportExportMixin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelAdmin):
     change_list_template = "admin/shop/product/change_list.html"
     inlines = [ProductMediaInline, ProductGalleryItemInline, ProductCertificateInline]
-    list_display = ("id", "name", "sku", "brand", "group", "shared_gallery", "price", "available", "media_preview")
+    list_display = ("id", "name", "sku", "brand", "group", "shared_gallery", "price", "available", "is_hidden", "media_preview")
     search_fields = ("name", "sku", "slug", "search_tsv", "seo_title", "seo_h1")
     autocomplete_fields = ("brand", "group", "shared_gallery")
-    list_filter = ("available", "brand", "group", "shared_gallery")
+    list_filter = ("available", "is_hidden", "brand", "group", "shared_gallery")
     readonly_fields = ("media_preview",)
     fieldsets = (
         (
@@ -45,6 +45,7 @@ class ProductAdminImportExportMixin(TabbedFieldsetsAdminMixin, MediaPreviewAdmin
                     "shared_gallery",
                     "media_preview",
                     "available",
+                    "is_hidden",
                     "search_tsv",
                 ),
             },

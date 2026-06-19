@@ -61,7 +61,7 @@ class ProductPagesSitemap(Sitemap):
     limit = 2000
 
     def items(self):
-        return Product.objects.filter(available=True).order_by("name", "id")
+        return Product.objects.filter(available=True, is_hidden=False).order_by("name", "id")
 
     def location(self, obj):
         return f"/product/{obj.slug}"

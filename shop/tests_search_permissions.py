@@ -65,6 +65,14 @@ class GlobalSearchFuzzyTests(TestCase):
         product_ids = [item["id"] for item in data["results"]["products"]]
         self.assertEqual(len(product_ids), len(set(product_ids)))
 
+    def test_global_search_ignores_hidden_products(self):
+        self.product.is_hidden = True
+        self.product.save(update_fields=["is_hidden"])
+
+        response = self.client.get(reverse("global-search"), {"q": "ENERGOROLL"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(any(item["sku"] == "FUZZY-1" for item in data["results"]["products"]))
 
     def test_global_search_ignores_single_character_variant_from_hyphenated_query(self):
         response = self.client.get(reverse("global-search"), {"q": "k-flex"})
