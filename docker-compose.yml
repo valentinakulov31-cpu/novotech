@@ -58,7 +58,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     healthcheck:
-      test: ["CMD-SHELL", "curl -kfsS --resolve nvt24.ru:443:127.0.0.1 https://nvt24.ru/ >/dev/null && curl -fsSI --resolve nvt24.ru:80:127.0.0.1 http://nvt24.ru/ | grep -q '308'"]
+      test: ["CMD-SHELL", "curl -kfsS --resolve nvt24.ru:443:127.0.0.1 https://nvt24.ru/ >/dev/null && curl -fsSI --resolve nvt24.ru:80:127.0.0.1 http://nvt24.ru/ | grep -Eq 'HTTP/[0-9.]+ 30[18]'"]
       interval: 30s
       timeout: 10s
       retries: 3
