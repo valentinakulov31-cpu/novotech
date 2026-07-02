@@ -2,6 +2,7 @@ from django.conf import settings
 from django.http import HttpResponse
 from django.test import TestCase
 from django.test.client import RequestFactory
+from django_prose_editor.widgets import AdminProseEditorWidget
 from tinymce.widgets import TinyMCE
 
 from django_shop.middleware import MediaEmbedHeadersMiddleware
@@ -40,6 +41,29 @@ class RichTextAdminFormTests(TestCase):
         form = ProductAdminForm()
         self.assertIsInstance(form.fields["characteristics_html"].widget, TinyMCE)
 
+    def test_product_admin_uses_prose_editor_for_description(self):
+        form = ProductAdminForm()
+        self.assertIsInstance(form.fields["description"].widget, AdminProseEditorWidget)
+
+    def test_product_description_sanitizer_strips_images_and_media(self):
+        field = ProductAdminForm().fields["description"]
+        dirty = (
+            '<p><img src="http://example.com/x.png"><strong>жирный</strong></p>'
+            '<script>alert(1)</script>'
+            '<iframe src="http://example.com"></iframe>'
+            '<ul><li>пункт</li></ul>'
+        )
+        cleaned = field.clean(dirty)
+        self.assertNotIn("<img", cleaned)
+        self.assertNotIn("<script", cleaned)
+        self.assertNotIn("<iframe", cleaned)
+        self.assertIn("<strong>жирный</strong>", cleaned)
+        self.assertIn("<li>пункт</li>", cleaned)
+
+    def test_product_description_empty_paragraph_saves_as_empty_string(self):
+        field = ProductAdminForm().fields["description"]
+        self.assertEqual(field.clean("<p></p>"), "")
+
     def test_order_email_settings_admin_uses_tinymce_widgets(self):
         form = OrderEmailSettingsAdminForm()
         self.assertIsInstance(form.fields["intro_html"].widget, TinyMCE)
@@ -57,6 +81,14 @@ class RichTextAdminFormTests(TestCase):
         self.assertTrue(config["table_appearance_options"])
         self.assertTrue(config["table_advtab"])
         self.assertNotIn('tableclass', config["toolbar"])
+
+    def test_tinymce_config_registers_table_autoheight_button(self):
+        config = settings.TINYMCE_DEFAULT_CONFIG
+        self.assertEqual(
+            config["external_plugins"]["tableautoheight"],
+            '/django-static/shop/js/tinymce-table-autoheight.js',
+        )
+        self.assertIn('tableautoheight', config["table_toolbar"])
 
     def test_catalog_table_sanitizer_enforces_catalog_design_inline(self):
         raw_html = (

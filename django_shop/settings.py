@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'django_filters',
     'tinymce',
+    'django_prose_editor',
     
     # Local apps
     'shop',
@@ -266,6 +267,9 @@ TINYMCE_DEFAULT_CONFIG = {
         'removeformat code preview'
     ),
     'content_css': ['/django-static/shop/css/tinymce-content.css'],
+    'external_plugins': {
+        'tableautoheight': '/django-static/shop/js/tinymce-table-autoheight.js',
+    },
     'style_formats_merge': False,
     'style_formats': [],
     'table_class_list': [],
@@ -287,7 +291,8 @@ TINYMCE_DEFAULT_CONFIG = {
     'table_toolbar': (
         'tableprops tabledelete | '
         'tableinsertrowbefore tableinsertrowafter tabledeleterow | '
-        'tableinsertcolbefore tableinsertcolafter tabledeletecol'
+        'tableinsertcolbefore tableinsertcolafter tabledeletecol | '
+        'tablemergecells tablesplitcells | tablecellprops | tableautoheight'
     ),
     'table_appearance_options': True,
     'table_advtab': True,

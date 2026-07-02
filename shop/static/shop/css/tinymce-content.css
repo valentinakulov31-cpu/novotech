@@ -33,3 +33,24 @@ table[style*="--catalog-table-border-style"] tbody tr,
 .catalog-table tbody tr {
     background-color: #ffffff;
 }
+
+/*
+ * Компактные строки таблиц: убираем скрытый «пол» высоты (~40px),
+ * чтобы строку можно было ужать до ~20px через Row properties.
+ * Селекторы повторяют специфичность дефолтного content.css TinyMCE.
+ */
+table:not([cellpadding]) td,
+table:not([cellpadding]) th {
+    padding: 2px 8px;
+    line-height: 1.2;
+}
+
+table td > p:first-child,
+table th > p:first-child {
+    margin-top: 0;
+}
+
+table td > p:last-child,
+table th > p:last-child {
+    margin-bottom: 0;
+}

@@ -1,5 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django_prose_editor.fields import ProseEditorFormField
+from django_prose_editor.widgets import AdminProseEditorWidget
 from tinymce.widgets import TinyMCE
 
 from shop.admin_form_mixins import AdminMediaFormMixin, HtmlTableSanitizerMixin, SeoFieldsAdminFormMixin
@@ -103,6 +105,25 @@ class ProductAdminForm(HtmlTableSanitizerMixin, SeoFieldsAdminFormMixin, AdminMe
     upload_folder_name = "products"
     html_field_names = ("assortment_html", "characteristics_html")
     seo_default_help_text = SEO_AUTO_HELP_TEXT
+
+    # Текстовое форматирование без вставки изображений/медиа: набор ниже —
+    # белый список и для кнопок редактора, и для серверной очистки (nh3).
+    description = ProseEditorFormField(
+        label="Описание",
+        required=False,
+        extensions={
+            "Bold": True,
+            "Italic": True,
+            "Underline": True,
+            "BulletList": True,
+            "OrderedList": True,
+            "ListItem": True,
+            "Blockquote": True,
+            "HardBreak": True,
+        },
+        sanitize=True,
+        widget=AdminProseEditorWidget,
+    )
 
     class Meta:
         model = Product

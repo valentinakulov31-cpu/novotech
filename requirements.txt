@@ -8,6 +8,7 @@ python-dotenv==1.0.1
 django-filter==24.1
 openpyxl==3.1.5
 django-tinymce==5.0.0
+django-prose-editor[sanitize]==0.26.0
 gunicorn==23.0.0
 whitenoise==6.7.0
 redis==5.0.8
