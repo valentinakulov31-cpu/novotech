@@ -86,7 +86,7 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
 
     groups = (
         apply_ranked_search(
-            Group.objects.all(),
+            Group.objects.select_related("parent"),
             query,
             exact_fields=group_fields,
             fuzzy_fields=group_fields,
@@ -107,7 +107,7 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
     )
     characteristics = (
         apply_ranked_search(
-            Characteristic.objects.select_related("group"),
+            Characteristic.objects.select_related("group", "group__parent"),
             query,
             exact_fields=characteristic_fields,
             fuzzy_fields=characteristic_fields,
@@ -129,7 +129,7 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
 
     products = list(
         apply_ranked_search(
-            Product.objects.filter(is_hidden=False).select_related("group", "brand"),
+            Product.objects.filter(is_hidden=False).select_related("group", "group__parent", "brand").prefetch_related("media_files"),
             query,
             exact_fields=product_fields,
             fuzzy_fields=product_fields,
