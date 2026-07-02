@@ -169,6 +169,47 @@ class RichTextAdminFormTests(TestCase):
         self.assertIn('border-style: dotted', cleaned_html)
         self.assertIn('border-width: 1px', cleaned_html)
         self.assertIn('border-collapse: collapse', cleaned_html)
+
+    def test_catalog_table_with_single_quoted_attributes_is_recognized(self):
+        raw_html = (
+            "<table style='border-style: var(--catalog-table-border-style); border-collapse: collapse;' border='1'>"
+            "<tbody><tr><td>1</td><td>2</td></tr></tbody></table>"
+        )
+        cleaned_html = sanitize_catalog_tables(raw_html)
+        self.assertIn('data-catalog-table="1"', cleaned_html)
+        self.assertIn('padding: 12px', cleaned_html)
+
+    def test_nested_unrecognized_table_is_left_untouched_inside_catalog_table(self):
+        raw_html = (
+            '<table style="border-style: var(--catalog-table-border-style);" border="1"><tbody>'
+            '<tr><td>outer'
+            '<table style="width: 50%"><tbody><tr><td>inner</td></tr></tbody></table>'
+            '</td><td>2</td></tr></tbody></table>'
+        )
+        cleaned_html = sanitize_catalog_tables(raw_html)
+        self.assertEqual(cleaned_html.count('padding: 12px'), 2)
+        self.assertIn('<table style="width: 50%">', cleaned_html)
+
+    def test_catalog_table_sanitizer_is_idempotent(self):
+        raw_html = (
+            '<table style="border-style: var(--catalog-table-border-style); width: 100.033%;" border="1">'
+            '<tbody><tr style="height: 22px;"><td style="width:20%">1</td><td>2</td></tr></tbody></table>'
+        )
+        once = sanitize_catalog_tables(raw_html)
+        self.assertEqual(sanitize_catalog_tables(once), once)
+
+    def test_html_entities_survive_table_normalization(self):
+        raw_html = (
+            '<p>&nbsp;до</p><table style="border-style: var(--catalog-table-border-style);" border="1">'
+            '<tbody><tr><td>x&nbsp;y</td></tr></tbody></table>'
+        )
+        cleaned_html = sanitize_catalog_tables(raw_html)
+        self.assertIn('&nbsp;до', cleaned_html)
+        self.assertIn('x&nbsp;y', cleaned_html)
+
+    def test_unbalanced_table_markup_is_left_untouched(self):
+        raw_html = '<table style="border-style: solid" border="1"><tr><td>broken'
+        self.assertEqual(sanitize_catalog_tables(raw_html), raw_html)
         self.assertIn('border: 1px dotted currentColor', cleaned_html)
         self.assertNotIn('background-color: white', cleaned_html)
         self.assertNotIn('padding: 12px', cleaned_html)
