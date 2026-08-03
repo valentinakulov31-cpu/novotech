@@ -286,12 +286,6 @@ def infer_data_type(value) -> str:
         return "text"
 
 
-def characteristic_header_from_name(name: str) -> str:
-    normalized = str(name or "").strip().replace("\n", " ")
-    normalized = re.sub(r"\s+", "_", normalized)
-    return f"char_{normalized}"
-
-
 def characteristic_name_from_header(header: str) -> str:
     normalized = str(header or "").strip().replace("\n", " ")
     if normalized.lower().startswith("char_"):
@@ -611,91 +605,6 @@ def import_products_from_workbook(workbook_file):
     return counters, issues
 
 
-def build_product_export_rows(products_queryset):
-    products = list(
-        products_queryset.select_related("group", "brand", "shared_gallery").prefetch_related(
-            "characteristics__characteristic",
-            "media_files",
-            "gallery_items",
-            "certificates",
-        )
-    )
-    characteristic_names = {}
-    for product in products:
-        for product_characteristic in product.characteristics.all():
-            characteristic_names[product_characteristic.characteristic.slug] = product_characteristic.characteristic.name
-
-    ordered_characteristics = sorted(characteristic_names.items(), key=lambda item: item[1].lower())
-    char_headers = [characteristic_header_from_name(name) for _, name in ordered_characteristics]
-
-    headers = [
-        "sku",
-        "slug",
-        "name",
-        "price",
-        "currency",
-        "description",
-        "assortment_html",
-        "characteristics_html",
-        "search_tsv",
-        "seo_title",
-        "seo_h1",
-        "seo_description",
-        "seo_keywords",
-        "seo_canonical_url",
-        "seo_robots",
-        "group_slug",
-        "brand_slug",
-        "shared_gallery_slug",
-        "available",
-        "is_hidden",
-        "media_urls",
-        "gallery_urls",
-        "gallery_titles",
-        "certificate_urls",
-        "certificate_titles",
-        *char_headers,
-    ]
-    rows = []
-    for product in products:
-        values_by_slug = {
-            product_characteristic.characteristic.slug: product_characteristic.value
-            for product_characteristic in product.characteristics.all()
-        }
-        product_media_urls = [item.url for item in product.media_files.all()]
-        rows.append(
-            [
-                product.sku,
-                product.slug,
-                product.name,
-                str(product.price),
-                product.currency,
-                product.description or "",
-                product.assortment_html or "",
-                product.characteristics_html or "",
-                product.search_tsv or "",
-                product.seo_title or "",
-                product.seo_h1 or "",
-                product.seo_description or "",
-                product.seo_keywords or "",
-                product.seo_canonical_url or "",
-                product.seo_robots or "",
-                product.group.name if product.group else "",
-                product.brand.name if product.brand else "",
-                product.shared_gallery.slug if product.shared_gallery else "",
-                "Да" if product.available else "Нет",
-                "Да" if product.is_hidden else "Нет",
-                ",".join(product_media_urls or (product.media or [])),
-                ",".join(item.url for item in product.gallery_items.all()),
-                ",".join(item.title or "" for item in product.gallery_items.all()),
-                ",".join(item.url for item in product.certificates.all()),
-                ",".join(item.title or "" for item in product.certificates.all()),
-                *[values_by_slug.get(characteristic_slug, "") or "" for characteristic_slug, _ in ordered_characteristics],
-            ]
-        )
-    return headers, rows
-
-
 def workbook_bytes_from_headers_and_rows(headers, rows, title="Products"):
     try:
         from openpyxl import Workbook
@@ -747,3 +656,7 @@ def workbook_bytes_from_import_report(counters, issues):
     workbook.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+# Backward-compatible import path for integrations that used the old combined service.
+from shop.services.catalog_export import build_product_export_rows  # noqa: E402,F401

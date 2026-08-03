@@ -13,7 +13,7 @@ from shop.admin_mixins import MediaPreviewAdminMixin, TabbedFieldsetsAdminMixin
 from shop.admin_support import SEO_FIELD_NAMES
 from shop.model_utils import transliterate_slug
 from shop.models import Product
-from shop.services import catalog_import as catalog_import_service
+from shop.services import catalog_export as catalog_export_service
 from shop.services import catalog_import_jobs as catalog_import_jobs_service
 from shop.services import media_assets as media_assets_service
 
@@ -120,14 +120,20 @@ class ProductAdminImportExportMixin(TabbedFieldsetsAdminMixin, MediaPreviewAdmin
             "opts": self.model._meta,
             "title": "Экспорт товаров в XLSX",
             "form": form,
-            "subtitle": "Можно выгрузить одну категорию, все категории архивом или весь каталог одним Excel-файлом.",
+            "subtitle": (
+                "Можно выгрузить одну категорию, все категории архивом или весь каталог одним Excel-файлом. "
+                "Каждый XLSX содержит отдельные листы со всеми фото, галереями, сертификатами, "
+                "характеристиками, группами и брендами."
+            ),
             "submit_label": "Экспортировать",
         }
         return TemplateResponse(request, "admin/shop/product/export_xlsx.html", context)
 
     def _export_single_group_workbook(self, group):
-        headers, rows = catalog_import_service.build_product_export_rows(Product.objects.filter(group=group).order_by("name", "id"))
-        payload = catalog_import_service.workbook_bytes_from_headers_and_rows(headers, rows, title=group.slug or group.name)
+        payload = catalog_export_service.workbook_bytes_from_product_export(
+            Product.objects.filter(group=group).order_by("name", "id"),
+            title=group.slug or group.name,
+        )
         filename = f"products_{transliterate_slug(group.slug or group.name)}.xlsx"
         response = HttpResponse(
             payload,
@@ -143,19 +149,25 @@ class ProductAdminImportExportMixin(TabbedFieldsetsAdminMixin, MediaPreviewAdmin
         with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
             groups = Group.objects.order_by("name")
             for group in groups:
-                headers, rows = catalog_import_service.build_product_export_rows(Product.objects.filter(group=group).order_by("name", "id"))
-                if not rows:
+                products = Product.objects.filter(group=group).order_by("name", "id")
+                if not products.exists():
                     continue
                 archive.writestr(
                     f"products_{transliterate_slug(group.slug or group.name)}.xlsx",
-                    catalog_import_service.workbook_bytes_from_headers_and_rows(headers, rows, title=group.slug or group.name),
+                    catalog_export_service.workbook_bytes_from_product_export(
+                        products,
+                        title=group.slug or group.name,
+                    ),
                 )
 
-            headers, rows = catalog_import_service.build_product_export_rows(Product.objects.filter(group__isnull=True).order_by("name", "id"))
-            if rows:
+            products_without_group = Product.objects.filter(group__isnull=True).order_by("name", "id")
+            if products_without_group.exists():
                 archive.writestr(
                     "products_without_group.xlsx",
-                    catalog_import_service.workbook_bytes_from_headers_and_rows(headers, rows, title="Без категории"),
+                    catalog_export_service.workbook_bytes_from_product_export(
+                        products_without_group,
+                        title="Без категории",
+                    ),
                 )
 
         buffer.seek(0)
@@ -164,8 +176,10 @@ class ProductAdminImportExportMixin(TabbedFieldsetsAdminMixin, MediaPreviewAdmin
         return response
 
     def _export_all_products_workbook(self):
-        headers, rows = catalog_import_service.build_product_export_rows(Product.objects.order_by("group__name", "name", "id"))
-        payload = catalog_import_service.workbook_bytes_from_headers_and_rows(headers, rows, title="Все товары")
+        payload = catalog_export_service.workbook_bytes_from_product_export(
+            Product.objects.order_by("group__name", "name", "id"),
+            title="Все товары",
+        )
         response = HttpResponse(
             payload,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -32,6 +32,8 @@ from shop.models import (
     ProductCharacteristic,
     ProductGalleryItem,
     ProductMedia,
+    SharedProductGallery,
+    SharedProductGalleryItem,
 )
 from shop.services import catalog_import_jobs as catalog_import_jobs_service
 from shop.services.catalog_import import split_title_values
@@ -191,6 +193,104 @@ class ProductExportAdminTests(TestCase):
         self.assertEqual(row_map["seo_title"], "SEO title")
         self.assertEqual(row_map["gallery_urls"], "/static/gallery.jpg")
         self.assertEqual(row_map["certificate_urls"], "/static/certificate.pdf")
+
+    def test_full_workbook_contains_all_product_related_data(self):
+        shared_gallery = SharedProductGallery.objects.create(
+            name="Shared export gallery",
+            slug="shared-export-gallery",
+            description="Shared gallery description",
+        )
+        self.product.shared_gallery = shared_gallery
+        self.product.save(update_fields=["shared_gallery"])
+        ProductMedia.objects.create(
+            product=self.product,
+            storage_path="media/preview.jpg",
+            url="/static/preview.jpg",
+            mime_type="image/jpeg",
+            media_kind="image",
+            size_bytes=128,
+            variants={"webp": "/static/preview.webp"},
+            is_primary=True,
+            sort_order=0,
+            alt_text="Preview alt",
+        )
+        ProductGalleryItem.objects.create(
+            product=self.product,
+            title="Product gallery image",
+            storage_path="media/gallery.jpg",
+            url="/static/gallery.jpg",
+            mime_type="image/jpeg",
+            file_kind="image",
+            size_bytes=256,
+            sort_order=0,
+        )
+        ProductCertificate.objects.create(
+            product=self.product,
+            title="Product certificate",
+            storage_path="media/certificate.pdf",
+            url="/static/certificate.pdf",
+            mime_type="application/pdf",
+            size_bytes=512,
+            sort_order=0,
+        )
+        SharedProductGalleryItem.objects.create(
+            gallery=shared_gallery,
+            title="Shared gallery image",
+            storage_path="media/shared.jpg",
+            url="/static/shared.jpg",
+            mime_type="image/jpeg",
+            file_kind="image",
+            size_bytes=1024,
+            sort_order=0,
+        )
+
+        response = self.admin._export_all_products_workbook()
+        workbook = load_workbook(BytesIO(response.content), data_only=True)
+
+        self.assertEqual(
+            workbook.sheetnames,
+            [
+                "Products",
+                "ProductMedia",
+                "ProductGallery",
+                "Certificates",
+                "SharedGalleries",
+                "SharedGalleryItems",
+                "Characteristics",
+                "Groups",
+                "Brands",
+            ],
+        )
+        product_headers = [cell.value for cell in workbook["Products"][1]]
+        product_row = next(
+            dict(zip(product_headers, values))
+            for values in workbook["Products"].iter_rows(min_row=2, values_only=True)
+            if values[product_headers.index("sku")] == self.product.sku
+        )
+        self.assertEqual(product_row["media_urls"], "/static/preview.jpg")
+        self.assertEqual(product_row["gallery_urls"], "/static/gallery.jpg")
+        self.assertEqual(product_row["shared_gallery_urls"], "/static/shared.jpg")
+        self.assertEqual(product_row["certificate_urls"], "/static/certificate.pdf")
+        self.assertIn('"name":', product_row["characteristics_json"])
+
+        media_headers = [cell.value for cell in workbook["ProductMedia"][1]]
+        media_values = [cell.value for cell in workbook["ProductMedia"][2]]
+        media_row = dict(zip(media_headers, media_values))
+        self.assertEqual(media_row["product_sku"], self.product.sku)
+        self.assertEqual(media_row["variants_json"], '{"webp": "/static/preview.webp"}')
+        self.assertEqual(media_row["alt_text"], "Preview alt")
+
+        certificate_headers = [cell.value for cell in workbook["Certificates"][1]]
+        certificate_values = [cell.value for cell in workbook["Certificates"][2]]
+        certificate_row = dict(zip(certificate_headers, certificate_values))
+        self.assertEqual(certificate_row["product_sku"], self.product.sku)
+        self.assertEqual(certificate_row["mime_type"], "application/pdf")
+
+        shared_headers = [cell.value for cell in workbook["SharedGalleryItems"][1]]
+        shared_values = [cell.value for cell in workbook["SharedGalleryItems"][2]]
+        shared_row = dict(zip(shared_headers, shared_values))
+        self.assertEqual(shared_row["gallery_slug"], shared_gallery.slug)
+        self.assertEqual(shared_row["url"], "/static/shared.jpg")
 
     def test_import_uploads_local_file_paths_and_links(self):
         media_root = tempfile.mkdtemp()
