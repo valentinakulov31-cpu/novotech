@@ -1,4 +1,6 @@
 from django.core.cache import cache
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from shop.models import Agent, PUBLISH_STATUS_DRAFT, PUBLISH_STATUS_PUBLISHED, Product
@@ -113,6 +115,41 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
         self.assertEqual(data["results"][0]["sku"], "ER-0001")
         self.assertEqual(data["context"]["group_slug"], "teploizolyatsiya")
         self.assertEqual(data["context"]["brand_slug"], "energoroll")
+
+    def test_catalog_results_return_lean_cards_with_bounded_queries(self):
+        for index in range(30):
+            Product.objects.create(
+                sku=f"PAGE-{index}",
+                name=f"Catalog page {index}",
+                price="100.00",
+                currency="RUB",
+                group=self.group,
+                brand=self.brand,
+                assortment_html="<table><tr><td>Detail only</td></tr></table>",
+                characteristics_html="<p>Detail only</p>",
+            )
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.post(
+                reverse("catalog-results"),
+                {
+                    "context": {},
+                    "filters": {},
+                    "page": 1,
+                    "page_size": 24,
+                    "sort": "name_asc",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(queries), 4)
+        product = response.json()["results"][0]
+        self.assertIn("seo", product)
+        self.assertNotIn("assortment_html", product)
+        self.assertNotIn("characteristics_html", product)
+        self.assertNotIn("gallery", product)
+        self.assertNotIn("certificates_list", product)
 
     def test_catalog_facets_endpoint_returns_group_brand_and_attribute_facets(self):
         response = self.client.post(

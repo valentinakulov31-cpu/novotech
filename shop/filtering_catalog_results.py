@@ -1,63 +1,12 @@
 from shop.filtering_catalog_payload import normalize_catalog_payload
 from shop.filtering_catalog_query import apply_catalog_filters, apply_catalog_sort
 from shop.models import Product
-from shop.seo import build_product_seo, resolve_city
+from shop.product_presenters import serialize_public_product_summary
+from shop.seo import resolve_city
 
 
 def serialize_product_card(product: Product, city=None) -> dict:
-    media_list = [
-        {
-            "id": item.id,
-            "url": item.url,
-            "mime_type": item.mime_type,
-            "media_kind": item.media_kind,
-            "is_primary": item.is_primary,
-            "sort_order": item.sort_order,
-            "alt_text": item.alt_text,
-        }
-        for item in product.media_files.all()
-    ]
-    gallery = [
-        {
-            "id": item.id,
-            "title": item.title,
-            "url": item.url,
-            "mime_type": item.mime_type,
-            "file_kind": item.file_kind,
-            "sort_order": item.sort_order,
-        }
-        for item in product.gallery_items.all()
-    ]
-    return {
-        "id": product.id,
-        "sku": product.sku,
-        "slug": product.slug,
-        "name": product.name,
-        "price": float(product.price),
-        "currency": product.currency,
-        "description": product.description,
-        "assortment_html": product.assortment_html,
-        "characteristics_html": product.characteristics_html,
-        "group_id": product.group_id,
-        "brand_id": product.brand_id,
-        "group_slug": product.group.slug if product.group else None,
-        "brand_slug": product.brand.slug if product.brand else None,
-        "media": product.media,
-        "available": product.available,
-        "seo": build_product_seo(product, city=city),
-        "media_list": media_list,
-        "gallery": gallery,
-        "certificates_list": [
-            {
-                "id": item.id,
-                "title": item.title,
-                "url": item.url,
-                "mime_type": item.mime_type,
-                "sort_order": item.sort_order,
-            }
-            for item in product.certificates.all()
-        ],
-    }
+    return serialize_public_product_summary(product, city=city)
 
 
 def build_catalog_results_payload(payload):

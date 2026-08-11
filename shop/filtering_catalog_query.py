@@ -16,12 +16,10 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
     context = payload["context"]
     filters = payload["filters"]
 
-    queryset = queryset.select_related("group", "brand").prefetch_related(
-        "media_files",
-        "gallery_items",
-        "certificates",
-        "characteristics__characteristic",
-    )
+    # Catalog cards only need relations used by their summary and SEO image.
+    # Detail-only galleries, certificates, and characteristics are loaded by
+    # the product detail endpoint instead of bloating every catalog page.
+    queryset = queryset.select_related("group", "brand").prefetch_related("media_files")
 
     group_ids = []
     if context["group_id"] and not exclude.get("base_group"):
