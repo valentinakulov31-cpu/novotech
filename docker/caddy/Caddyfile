@@ -38,7 +38,7 @@ nvt24.ru {
     @backend path /robots.txt /sitemap.xml /sitemap-*.xml /{$ADMIN_URL_PATH}* /tinymce* /v1*
     reverse_proxy @backend 127.0.0.1:8000
 
-    reverse_proxy 127.0.0.1:3000
+    reverse_proxy 127.0.0.1:3001
 }
 
 http://nvt24.ru, http://www.nvt24.ru {
@@ -78,4 +78,40 @@ www.nvt24.ru {
     handle {
         redir https://nvt24.ru{uri} permanent
     }
+}
+
+# SSR preview contour. Production nvt24.ru remains proxied to the current frontend.
+:3002 {
+    encode zstd gzip
+
+    header {
+        X-Robots-Tag "noindex, nofollow"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+    }
+
+    @django_static path /django-static/*
+    handle @django_static {
+        root * /srv/staticfiles
+        uri strip_prefix /django-static
+        file_server
+        header Cache-Control "public, max-age=2592000"
+    }
+
+    @media path /static/*
+    handle @media {
+        root * /srv/media
+        uri strip_prefix /static
+        file_server
+        header Cache-Control "public, max-age=604800"
+    }
+
+    @backend path /robots.txt /sitemap.xml /sitemap-*.xml /{$ADMIN_URL_PATH}* /tinymce* /v1*
+    reverse_proxy @backend 127.0.0.1:8000 {
+        header_up Host nvt24.ru
+        header_up X-Forwarded-Host nvt24.ru
+        header_up X-Forwarded-Proto https
+    }
+
+    reverse_proxy 127.0.0.1:3001
 }
