@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shop.filtering import parse_bool
+from shop.catalog_cache import catalog_cache_version
 from shop.services.global_search import build_global_search_payload
 
 SEARCH_CACHE_TTL = 60
@@ -14,7 +15,7 @@ SEARCH_CACHE_TTL = 60
 
 def build_search_cache_key(query: str | None, city_slug: str | None) -> str:
     seed = f"{(query or '').strip().lower()}|{(city_slug or '').strip().lower()}".encode("utf-8")
-    return f"search:v2:{hashlib.sha256(seed).hexdigest()}"
+    return f"search:v3:{catalog_cache_version()}:{hashlib.sha256(seed).hexdigest()}"
 
 
 @extend_schema(

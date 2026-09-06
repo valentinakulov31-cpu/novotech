@@ -36,6 +36,7 @@ from shop.models_catalog import (
     SharedProductGallery,
     SharedProductGalleryItem,
 )
+from shop.models_cache import CatalogCacheVersion
 from shop.models_content import Agent, ContactInfo, HtmlContent, Inquiry, News, NewsAttachment, Sert, Slider
 from shop.models_orders import OrderEmailRecipient, OrderEmailSettings, PublicOrder, PublicOrderItem
 

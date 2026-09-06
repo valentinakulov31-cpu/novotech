@@ -30,6 +30,7 @@ class ProductMediaListView(ListAPIView):
     
     def get_queryset(self):
         product_id = self.kwargs['product_id']
+        get_object_or_404(Product.objects.visible().only('pk'), pk=product_id)
         return ProductMedia.objects.filter(product_id=product_id).order_by('-is_primary', 'sort_order', 'id')
 
 

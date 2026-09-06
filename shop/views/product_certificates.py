@@ -26,6 +26,7 @@ class ProductCertificateListView(ListAPIView):
 
     def get_queryset(self):
         product_id = self.kwargs['product_id']
+        get_object_or_404(Product.objects.visible().only('pk'), pk=product_id)
         return ProductCertificate.objects.filter(product_id=product_id).order_by('sort_order', 'id')
 
 

@@ -5,7 +5,7 @@ nvt24.ru {
     header {
         Strict-Transport-Security "max-age=31536000"
         X-Content-Type-Options "nosniff"
-        Referrer-Policy "same-origin"
+        Referrer-Policy "strict-origin-when-cross-origin"
     }
 
     @django_static path /django-static/*
@@ -87,7 +87,7 @@ www.nvt24.ru {
     header {
         X-Robots-Tag "noindex, nofollow"
         X-Content-Type-Options "nosniff"
-        Referrer-Policy "same-origin"
+        Referrer-Policy "strict-origin-when-cross-origin"
     }
 
     @django_static path /django-static/*

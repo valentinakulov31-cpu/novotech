@@ -57,7 +57,7 @@ class PublicOrderItemCreateSerializer(serializers.Serializer):
     qty = serializers.IntegerField(min_value=1)
 
     def validate_product_id(self, value):
-        if not Product.objects.filter(id=value).exists():
+        if not Product.objects.visible().filter(id=value).exists():
             raise serializers.ValidationError("Product does not exist.")
         return value
 

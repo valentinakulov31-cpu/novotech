@@ -39,7 +39,7 @@ class BrandListView(ListAPIView):
     permission_classes = [AllowAny]
     
     def get_queryset(self):
-        queryset = Brand.objects.all()
+        queryset = Brand.objects.visible()
         name = self.request.query_params.get('name')
         if name:
             transliterated = transliterate_slug(name)

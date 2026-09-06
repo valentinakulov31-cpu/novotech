@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 
 from shop.catalog_view_helpers import get_product_by_identifier
+from shop.catalog_cache import catalog_cache_version
 from shop.filtering import (
     apply_catalog_filters,
     build_facets,
@@ -42,7 +43,7 @@ def build_popular_products_cache_key(query_params):
         for key, values in query_params.lists()
     )
     cache_seed = repr(normalized_params).encode("utf-8")
-    return f"products:popular:v1:{hashlib.sha256(cache_seed).hexdigest()}"
+    return f"products:popular:v2:{catalog_cache_version()}:{hashlib.sha256(cache_seed).hexdigest()}"
 
 
 @extend_schema(tags=['products'])

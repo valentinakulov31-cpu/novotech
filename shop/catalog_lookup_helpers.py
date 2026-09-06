@@ -16,7 +16,7 @@ def get_product_by_identifier(product_identifier, *, include_hidden=False):
         "shared_gallery__items",
     )
     if not include_hidden:
-        queryset = queryset.filter(is_hidden=False)
+        queryset = queryset.visible()
     return get_object_or_404(queryset, lookup)
 
 
@@ -28,5 +28,5 @@ def get_group_by_identifier(group_identifier):
 
 def get_brand_by_identifier(brand_identifier):
     if str(brand_identifier).isdigit():
-        return get_object_or_404(Brand, id=int(brand_identifier))
-    return get_object_or_404(Brand, slug=brand_identifier)
+        return get_object_or_404(Brand.objects.visible(), id=int(brand_identifier))
+    return get_object_or_404(Brand.objects.visible(), slug=brand_identifier)

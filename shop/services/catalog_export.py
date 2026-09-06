@@ -358,7 +358,7 @@ def _related_sheets(products):
         ),
         (
             "Brands",
-            ["id", "name", "slug", "search_synonyms_json", "search_index", "media"],
+            ["id", "name", "slug", "search_synonyms_json", "search_index", "media", "is_hidden"],
             [
                 [
                     brand.id,
@@ -367,6 +367,7 @@ def _related_sheets(products):
                     _json_value(brand.search_synonyms),
                     brand.search_index or "",
                     brand.media or "",
+                    _boolean_value(brand.is_hidden),
                 ]
                 for brand in sorted(brands.values(), key=lambda item: item.id)
             ],

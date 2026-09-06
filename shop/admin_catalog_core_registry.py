@@ -9,18 +9,20 @@ from shop.admin_catalog_import_export import ProductAdminImportExportMixin
 from shop.admin_forms import BrandAdminForm, GroupAdminForm, ProductAdminForm, ProductCharacteristicAdminForm
 from shop.admin_mixins import MediaPreviewAdminMixin, TabbedFieldsetsAdminMixin
 from shop.admin_support import SEO_FIELD_NAMES
+from shop.admin_visibility import CatalogVisibilityAdminMixin
 from shop.model_utils import transliterate_slug
 from shop.models import Brand, CatalogImportJob, Characteristic, City, Group, Product, ProductCharacteristic
 from shop.services import catalog_import_jobs as catalog_import_jobs_service
 
 
 @admin.register(Brand)
-class BrandAdmin(MediaPreviewAdminMixin, admin.ModelAdmin):
+class BrandAdmin(CatalogVisibilityAdminMixin, MediaPreviewAdminMixin, admin.ModelAdmin):
     form = BrandAdminForm
-    list_display = ("id", "name", "slug", "media_preview")
+    list_display = ("id", "name", "slug", "is_hidden", "media_preview")
+    list_filter = ("is_hidden",)
     search_fields = ("name", "slug")
     readonly_fields = ("media_preview",)
-    fields = ("name", "slug", "search_synonyms", "media", "media_upload", "media_preview")
+    fields = ("name", "slug", "is_hidden", "search_synonyms", "media", "media_upload", "media_preview")
 
 
 @admin.register(City)
@@ -153,7 +155,7 @@ class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelA
 
 
 @admin.register(Product)
-class ProductAdmin(ProductAdminImportExportMixin):
+class ProductAdmin(CatalogVisibilityAdminMixin, ProductAdminImportExportMixin):
     form = ProductAdminForm
 
 

@@ -42,6 +42,7 @@ class ProductAttributesView(APIView):
         responses={200: ProductCharacteristicSerializer(many=True)}
     )
     def get(self, request, product_id):
+        get_object_or_404(Product.objects.visible().only('pk'), pk=product_id)
         return Response(serialize_product_attributes(product_id))
 
 

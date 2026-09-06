@@ -97,7 +97,7 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
 
     brands = (
         apply_ranked_search(
-            Brand.objects.all(),
+            Brand.objects.visible(),
             query,
             exact_fields=brand_fields,
             fuzzy_fields=brand_fields,
@@ -129,7 +129,7 @@ def build_global_search_payload(query: str, city_slug: str | None = None, debug:
 
     products = list(
         apply_ranked_search(
-            Product.objects.filter(is_hidden=False).select_related("group", "group__parent", "brand").prefetch_related("media_files"),
+            Product.objects.visible().select_related("group", "group__parent", "brand").prefetch_related("media_files"),
             query,
             exact_fields=product_fields,
             fuzzy_fields=product_fields,

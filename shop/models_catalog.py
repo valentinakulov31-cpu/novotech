@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from shop.catalog_querysets import BrandQuerySet, ProductQuerySet
 from shop.model_constants import CHARACTERISTIC_TYPE_CHOICES
 from shop.model_utils import (
     assign_sort_order,
@@ -23,6 +24,12 @@ class Brand(models.Model):
     search_synonyms = models.JSONField(default=list, blank=True)
     search_index = models.TextField(default="", blank=True)
     media = models.CharField(max_length=1024, null=True, blank=True)
+    is_hidden = models.BooleanField(
+        "Скрыт на сайте", default=False,
+        help_text="Скрывает бренд и его товары из каталога, поиска и карты сайта.",
+    )
+
+    objects = BrandQuerySet.as_manager()
 
     class Meta:
         db_table = "brands"
@@ -137,7 +144,7 @@ class Product(models.Model):
     )
     media = models.JSONField(null=True, blank=True)
     available = models.BooleanField(default=True)
-    is_hidden = models.BooleanField(default=False)
+    is_hidden = models.BooleanField("Скрыт на сайте", default=False)
     search_tsv = models.TextField("Search synonyms", null=True, blank=True)
     search_index = models.TextField(default="", blank=True)
     seo_title = models.CharField(max_length=255, null=True, blank=True)
@@ -146,6 +153,8 @@ class Product(models.Model):
     seo_keywords = models.TextField(null=True, blank=True)
     seo_canonical_url = models.CharField(max_length=1024, null=True, blank=True)
     seo_robots = models.CharField(max_length=255, null=True, blank=True)
+
+    objects = ProductQuerySet.as_manager()
 
     class Meta:
         db_table = "products"

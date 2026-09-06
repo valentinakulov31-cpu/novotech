@@ -10,9 +10,9 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
     payload = normalize_catalog_payload(payload)
     exclude = exclude or {}
     if queryset is None:
-        queryset = Product.objects.filter(is_hidden=False)
+        queryset = Product.objects.all()
     if not exclude.get("hidden"):
-        queryset = queryset.filter(is_hidden=False)
+        queryset = queryset.visible()
     context = payload["context"]
     filters = payload["filters"]
 
