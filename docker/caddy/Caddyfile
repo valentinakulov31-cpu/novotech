@@ -5,7 +5,6 @@ nvt24.ru {
     header {
         Strict-Transport-Security "max-age=31536000"
         X-Content-Type-Options "nosniff"
-        -Referrer-Policy
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 
@@ -37,7 +36,9 @@ nvt24.ru {
     }
 
     @backend path /robots.txt /sitemap.xml /sitemap-*.xml /{$ADMIN_URL_PATH}* /tinymce* /v1*
-    reverse_proxy @backend 127.0.0.1:8000
+    reverse_proxy @backend 127.0.0.1:8000 {
+        header_down -Referrer-Policy
+    }
 
     reverse_proxy 127.0.0.1:3001
 }
@@ -88,7 +89,6 @@ www.nvt24.ru {
     header {
         X-Robots-Tag "noindex, nofollow"
         X-Content-Type-Options "nosniff"
-        -Referrer-Policy
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 
@@ -110,6 +110,7 @@ www.nvt24.ru {
 
     @backend path /robots.txt /sitemap.xml /sitemap-*.xml /{$ADMIN_URL_PATH}* /tinymce* /v1*
     reverse_proxy @backend 127.0.0.1:8000 {
+        header_down -Referrer-Policy
         header_up Host nvt24.ru
         header_up X-Forwarded-Host nvt24.ru
         header_up X-Forwarded-Proto https
