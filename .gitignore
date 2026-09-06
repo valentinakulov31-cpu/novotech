@@ -24,6 +24,7 @@ db.sqlite3
 # Local uploads/import staging
 admin_uploads/
 test-media/
+artifacts/
 
 # Logs and runtime files
 *.log
