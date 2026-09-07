@@ -67,7 +67,7 @@ class SeoInfraTests(TestCase):
         self.assertEqual(group_response.status_code, 200)
         self.assertEqual(producer_response.status_code, 200)
         self.assertIn("/group/izolyatsiya", group_response.content.decode("utf-8"))
-        self.assertIn("/producer/novateh", producer_response.content.decode("utf-8"))
+        self.assertIn("/brand/novateh", producer_response.content.decode("utf-8"))
 
     def test_news_sitemap_uses_news_detail_route(self):
         response = self.client.get(reverse("sitemap-section", kwargs={"section": "news"}))

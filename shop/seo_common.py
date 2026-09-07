@@ -22,7 +22,7 @@ def truncate(text: str, limit: int) -> str:
     text = " ".join(str(text or "").split())
     if len(text) <= limit:
         return text
-    return text[: limit - 1].rstrip() + "вЂ¦"
+    return text[: max(0, limit - 1)].rstrip() + "…" if limit > 0 else ""
 
 
 def split_synonyms(value: str | None) -> list[str]:
@@ -38,7 +38,7 @@ def city_prepositional_phrase(city: City | None) -> str | None:
     city_name = first_non_empty(city.name_in_prepositional, city.name)
     if not city_name:
         return None
-    return f"РІ {city_name}"
+    return f"в {city_name}"
 
 
 def dedupe_keywords(values):

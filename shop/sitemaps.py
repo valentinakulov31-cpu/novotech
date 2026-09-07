@@ -36,7 +36,7 @@ class GroupPagesSitemap(Sitemap):
     priority = 0.8
 
     def items(self):
-        return Group.objects.order_by("name", "id")
+        return Group.objects.exclude(seo_robots__icontains="noindex").order_by("name", "id")
 
     def location(self, obj):
         return f"/group/{obj.slug}"
@@ -51,7 +51,7 @@ class ProducerPagesSitemap(Sitemap):
         return Brand.objects.visible().order_by("name", "id")
 
     def location(self, obj):
-        return f"/producer/{obj.slug}"
+        return f"/brand/{obj.slug}"
 
 
 class ProductPagesSitemap(Sitemap):
@@ -61,7 +61,8 @@ class ProductPagesSitemap(Sitemap):
     limit = 2000
 
     def items(self):
-        return Product.objects.visible().filter(available=True).order_by("name", "id")
+        return (Product.objects.visible().filter(available=True)
+                .exclude(seo_robots__icontains="noindex").order_by("name", "id"))
 
     def location(self, obj):
         return f"/product/{obj.slug}"

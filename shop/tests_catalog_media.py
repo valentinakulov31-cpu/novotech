@@ -76,7 +76,7 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
         product_data = product_detail.json()
         self.assertIn("seo", product_data)
         self.assertEqual(product_data["seo"]["h1"], self.product.name)
-        self.assertEqual(product_data["seo"]["canonical_url"], f"/products/{self.product.slug}")
+        self.assertEqual(product_data["seo"]["canonical_url"], f"/product/{self.product.slug}")
 
         group_list = self.client.get(reverse("groups-list"))
         self.assertEqual(group_list.status_code, 200)
@@ -84,7 +84,7 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
         target_group = next(item for item in groups if item["slug"] == self.group.slug)
         self.assertIn("seo", target_group)
         self.assertEqual(target_group["seo"]["h1"], self.group.name)
-        self.assertEqual(target_group["seo"]["canonical_url"], f"/groups/{self.group.slug}")
+        self.assertEqual(target_group["seo"]["canonical_url"], f"/group/{self.group.slug}")
 
         group_detail = self.client.get(reverse("groups-detail", kwargs={"group_identifier": self.group.slug}))
         self.assertEqual(group_detail.status_code, 200)

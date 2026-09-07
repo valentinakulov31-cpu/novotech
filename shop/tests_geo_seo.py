@@ -49,7 +49,7 @@ class GeoSeoApiTests(TestCase):
         data = response.json()
         self.assertEqual(data["seo"]["city"], "krasnoyarsk")
         self.assertIn(self.brand.name, data["seo"]["title"])
-        self.assertEqual(data["seo"]["canonical_url"], f"/products/{self.product.slug}")
+        self.assertEqual(data["seo"]["canonical_url"], f"/product/{self.product.slug}")
 
     def test_product_seo_templates_render_city_placeholders(self):
         self.product.seo_title = "{name} РєСѓРїРёС‚СЊ {city_prep} | {brand}"
@@ -79,7 +79,7 @@ class GeoSeoApiTests(TestCase):
         data = response.json()
         self.assertEqual(data["category"]["seo"]["city"], "krasnoyarsk")
         self.assertIn(self.group.name, data["category"]["seo"]["title"])
-        self.assertEqual(data["category"]["seo"]["canonical_url"], f"/groups/{self.group.slug}")
+        self.assertEqual(data["category"]["seo"]["canonical_url"], f"/group/{self.group.slug}")
 
     def test_search_returns_city_aware_seo(self):
         response = self.client.get(

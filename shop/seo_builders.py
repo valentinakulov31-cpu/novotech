@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from itertools import chain
+from urllib.parse import urlparse
 
 from shop.models import City, Group, Product
 from shop.seo_common import (
@@ -12,16 +13,37 @@ from shop.seo_common import (
     truncate,
 )
 
+ALLOWED_CANONICAL_HOSTS = {"nvt24.ru", "www.nvt24.ru"}
+
+
+def own_canonical_url(value: str | None, default: str) -> str:
+    rendered = first_non_empty(value)
+    if not rendered:
+        return default
+
+    try:
+        parsed = urlparse(rendered)
+    except ValueError:
+        return default
+    if parsed.scheme and parsed.scheme not in {"http", "https"}:
+        return default
+    if "\\" in rendered or parsed.query or parsed.fragment:
+        return default
+    if parsed.netloc and parsed.netloc.lower() not in ALLOWED_CANONICAL_HOSTS:
+        return default
+    if not parsed.path.startswith("/") or parsed.path.startswith("//"):
+        return default
+    return parsed.path
+
 
 def product_default_title(product: Product, city: City | None = None) -> str:
     bits = [product.name]
     city_phrase = city_prepositional_phrase(city)
     if city_phrase:
-        bits.append(f"РєСѓРїРёС‚СЊ {city_phrase}")
-    if product.brand:
+        bits.append(f"купить {city_phrase}")
+    if product.brand and product.brand.name.casefold() not in product.name.casefold():
         bits.append(product.brand.name)
-    if product.group:
-        bits.append(product.group.name)
+    bits.append("Новатех")
     return truncate(" | ".join(dedupe_keywords(bits)), 255)
 
 
@@ -29,39 +51,31 @@ def group_default_title(group: Group, city: City | None = None) -> str:
     city_phrase = city_prepositional_phrase(city)
     bits = [group.name]
     if city_phrase:
-        bits.append(f"РєСѓРїРёС‚СЊ {city_phrase}")
-    bits.append("РєР°С‚Р°Р»РѕРі")
-    if group.parent:
-        bits.append(group.parent.name)
+        bits.append(f"купить {city_phrase}")
+    bits.append("каталог")
+    bits.append("Новатех")
     return truncate(" | ".join(dedupe_keywords(bits)), 255)
 
 
 def product_default_description(product: Product, city: City | None = None) -> str:
     city_phrase = city_prepositional_phrase(city)
-    source = first_non_empty(
-        product.seo_description,
-        product.description,
-        (
-            f"{product.name} {city_phrase}. РўРµС…РЅРёС‡РµСЃРєРёРµ С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё, С„РѕС‚Рѕ, РґРѕРєСѓРјРµРЅС‚С‹ Рё СЃРµСЂС‚РёС„РёРєР°С‚С‹ С‚РѕРІР°СЂР°."
-            if city_phrase
-            else f"{product.name}. РўРµС…РЅРёС‡РµСЃРєРёРµ С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё, С„РѕС‚Рѕ, РґРѕРєСѓРјРµРЅС‚С‹ Рё СЃРµСЂС‚РёС„РёРєР°С‚С‹ С‚РѕРІР°СЂР°."
-        ),
+    # Supplier descriptions stay in the card, not in our marketing metadata.
+    location = city_phrase or "в Красноярске"
+    return truncate(
+        f"{product.name} в каталоге Новатех. Характеристики и фотографии товара. "
+        f"Подбор материалов и консультация {location}.",
+        200,
     )
-    return truncate(source, 320)
 
 
 def group_default_description(group: Group, city: City | None = None) -> str:
     city_phrase = city_prepositional_phrase(city)
-    source = first_non_empty(
-        group.seo_description,
-        group.description,
-        (
-            f"РљР°С‚РµРіРѕСЂРёСЏ {group.name} {city_phrase}. РўРѕРІР°СЂС‹, С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё, РґРѕРєСѓРјРµРЅС‚С‹ Рё РґРѕСЃС‚СѓРїРЅС‹Рµ Р±СЂРµРЅРґС‹."
-            if city_phrase
-            else f"РљР°С‚РµРіРѕСЂРёСЏ {group.name}. РўРѕРІР°СЂС‹, С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё, РґРѕРєСѓРјРµРЅС‚С‹ Рё РґРѕСЃС‚СѓРїРЅС‹Рµ Р±СЂРµРЅРґС‹."
-        ),
+    location = city_phrase or "в Красноярске"
+    return truncate(
+        f"{group.name} в каталоге Новатех: товары, характеристики и бренды. "
+        f"Помощь в подборе материалов {location}.",
+        200,
     )
-    return truncate(source, 320)
 
 
 def product_default_keywords(product: Product) -> str:
@@ -138,8 +152,8 @@ def build_group_seo(group: Group, city: City | None = None) -> dict:
         f"{group.name} {city_phrase}" if city_phrase else group.name,
     )
     keywords = first_non_empty(render_template(group.seo_keywords, context), group_default_keywords(group, city))
-    default_canonical = f"/groups/{group.slug}"
-    canonical_url = first_non_empty(render_template(group.seo_canonical_url, context), default_canonical)
+    default_canonical = f"/group/{group.slug}"
+    canonical_url = own_canonical_url(render_template(group.seo_canonical_url, context), default_canonical)
     robots = first_non_empty(render_template(group.seo_robots, context), "index,follow")
     og_image = first_non_empty(group.media)
     return {
@@ -169,8 +183,8 @@ def build_product_seo(product: Product, city: City | None = None) -> dict:
         f"{product.name} {city_phrase}" if city_phrase else product.name,
     )
     keywords = first_non_empty(render_template(product.seo_keywords, context), product_default_keywords(product))
-    default_canonical = f"/products/{product.slug or product.id}"
-    canonical_url = first_non_empty(render_template(product.seo_canonical_url, context), default_canonical)
+    default_canonical = f"/product/{product.slug or product.id}"
+    canonical_url = own_canonical_url(render_template(product.seo_canonical_url, context), default_canonical)
     robots = first_non_empty(render_template(product.seo_robots, context), "index,follow")
     og_image = product_og_image(product)
     return {
