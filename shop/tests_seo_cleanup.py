@@ -99,6 +99,7 @@ class SeoCleanupTests(TestCase):
 
     def test_sitemap_respects_noindex_and_hidden_brands(self):
         self.assertNotIn(self.product, ProductPagesSitemap().items())
+
         self.group.seo_robots = "noindex,follow"
         self.group.save()
         self.assertNotIn(self.group, GroupPagesSitemap().items())
@@ -107,3 +108,9 @@ class SeoCleanupTests(TestCase):
         self.brand.is_hidden = True
         self.brand.save()
         self.assertNotIn(self.product, ProductPagesSitemap().items())
+
+    def test_visible_price_on_request_products_remain_discoverable(self):
+        self.product.available = False
+        self.product.seo_robots = None
+        self.product.save()
+        self.assertIn(self.product, ProductPagesSitemap().items())
