@@ -87,6 +87,12 @@ class SliderSerializer(serializers.ModelSerializer):
 
 
 class HtmlContentSerializer(serializers.ModelSerializer):
+    requisites_file = serializers.SerializerMethodField()
+
+    def get_requisites_file(self, obj):
+        # Keep links origin-relative when Angular SSR calls the internal API.
+        return obj.requisites_file.url if obj.requisites_file else None
+
     class Meta:
         model = HtmlContent
         fields = ["html_first", "html_second", "requisites_file", "requisites_file_title"]

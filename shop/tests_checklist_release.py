@@ -4,7 +4,7 @@ from zipfile import ZipFile
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 from shop.company_documents import validate_company_document
 from shop.catalog_payload_builders import build_brand_grouped_products_payload
@@ -44,7 +44,7 @@ class ChecklistReleaseTests(TestCase):
             self.assertTrue(form.is_valid(), form.errors)
             content = form.save()
             self.assertTrue(content.requisites_file.storage.exists(content.requisites_file.name))
-            payload = HtmlContentSerializer(content).data
+            payload = HtmlContentSerializer(content, context={"request": RequestFactory().get("/", HTTP_HOST="127.0.0.1:8000")}).data
             self.assertTrue(payload["requisites_file"].startswith("/static/company_documents/"))
             self.assertEqual(payload["requisites_file_title"], "Download")
             self.assertEqual(payload["html_second"], "<p>Details</p>")
