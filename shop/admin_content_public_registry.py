@@ -88,6 +88,8 @@ class HtmlContentAdmin(PublishWorkflowAdminMixin, admin.ModelAdmin):
         "title",
         "html_first",
         "html_second",
+        "requisites_file",
+        "requisites_file_title",
         "status",
         "preview_link",
         "updated_by",

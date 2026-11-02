@@ -79,6 +79,7 @@ class Group(models.Model):
         related_name="children",
     )
     name = models.CharField(max_length=255)
+    sort_order = models.IntegerField("Порядок групп у бренда", default=0, help_text="Меньше число — выше группа. Для аксессуаров удобно использовать 1000.")
     slug = models.CharField(max_length=255, unique=True)
     search_synonyms = models.JSONField(default=list, blank=True)
     search_index = models.TextField(default="", blank=True)

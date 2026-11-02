@@ -89,7 +89,7 @@ class SliderSerializer(serializers.ModelSerializer):
 class HtmlContentSerializer(serializers.ModelSerializer):
     class Meta:
         model = HtmlContent
-        fields = ["html_first", "html_second"]
+        fields = ["html_first", "html_second", "requisites_file", "requisites_file_title"]
 
 
 class ContactInfoSerializer(serializers.ModelSerializer):

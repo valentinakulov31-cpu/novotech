@@ -42,11 +42,13 @@ def build_group_with_products_payload(group, *, city=None):
 
 
 def build_brand_grouped_products_payload(brand, *, city=None):
-    products = Product.objects.visible().filter(brand=brand).select_related("group")
+    products = Product.objects.visible().filter(brand=brand).select_related("group").order_by("name", "id")
     grouped = {}
+    group_order = {}
     for product in products:
         if product.group:
             category_key = product.group.slug
+            group_order[category_key] = (0, product.group.sort_order, product.group.name.casefold(), product.group_id)
             if category_key not in grouped:
                 grouped[category_key] = {
                     **serialize_public_group_summary(product.group, city=city),
@@ -54,6 +56,7 @@ def build_brand_grouped_products_payload(brand, *, city=None):
                 }
         else:
             category_key = "uncategorized"
+            group_order[category_key] = (1, 0, "", 0)
             if category_key not in grouped:
                 grouped[category_key] = {
                     "id": None,
@@ -74,5 +77,5 @@ def build_brand_grouped_products_payload(brand, *, city=None):
             "slug": brand.slug,
             "media": brand.media,
         },
-        "categories": list(grouped.values()),
+        "categories": [grouped[key] for key in sorted(grouped, key=group_order.__getitem__)],
     }

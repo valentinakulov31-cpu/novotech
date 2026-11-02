@@ -15,7 +15,6 @@ class StaticPagesSitemap(Sitemap):
             {"location": "/about", "priority": 0.6, "changefreq": "monthly"},
             {"location": "/news", "priority": 0.7, "changefreq": "daily"},
             {"location": "/contacts", "priority": 0.8, "changefreq": "monthly"},
-            {"location": "/certificates", "priority": 0.6, "changefreq": "weekly"},
             {"location": "/personal-data", "priority": 0.3, "changefreq": "yearly"},
             {"location": "/privacy-policy", "priority": 0.3, "changefreq": "yearly"},
         )

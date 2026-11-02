@@ -37,7 +37,9 @@ class CityAdmin(admin.ModelAdmin):
 @admin.register(Group)
 class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelAdmin):
     form = GroupAdminForm
-    list_display = ("id", "name", "slug", "parent", "media_preview")
+    list_display = ("id", "name", "slug", "parent", "sort_order", "media_preview")
+    list_editable = ("sort_order",)
+    ordering = ("sort_order", "name", "id")
     search_fields = ("name", "slug", "seo_title", "seo_h1")
     list_filter = ("parent",)
     readonly_fields = ("media_preview", "characteristics_tab")
@@ -48,6 +50,7 @@ class GroupAdmin(TabbedFieldsetsAdminMixin, MediaPreviewAdminMixin, admin.ModelA
                 "classes": ("tabbed-fieldset",),
                 "fields": (
                     "parent",
+                    "sort_order",
                     "name",
                     "slug",
                     "search_synonyms",

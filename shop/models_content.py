@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from shop.model_constants import PUBLISH_STATUS_CHOICES, PUBLISH_STATUS_DRAFT, PUBLISH_STATUS_PUBLISHED
 from shop.model_utils import assign_sort_order
+from shop.company_documents import company_document_path, validate_company_document
 
 
 class News(models.Model):
@@ -169,6 +170,11 @@ class HtmlContent(models.Model):
     title = models.CharField(max_length=255, default="Реквизиты компании")
     html_first = models.TextField()
     html_second = models.TextField()
+    requisites_file = models.FileField(
+        "Файл реквизитов", upload_to=company_document_path, blank=True,
+        validators=[validate_company_document], help_text="PDF, DOC или DOCX, до 10 МБ.",
+    )
+    requisites_file_title = models.CharField("Название ссылки на файл", max_length=255, blank=True, default="Скачать реквизиты")
     status = models.CharField(max_length=20, choices=PUBLISH_STATUS_CHOICES, default=PUBLISH_STATUS_DRAFT)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)

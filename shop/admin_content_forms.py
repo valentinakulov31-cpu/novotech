@@ -1,5 +1,7 @@
 from django import forms
 from tinymce.widgets import TinyMCE
+from django_prose_editor.fields import ProseEditorFormField
+from django_prose_editor.widgets import AdminProseEditorWidget
 
 from shop.admin_form_mixins import AdminMediaFormMixin, HtmlTableSanitizerMixin
 from shop.admin_support import save_admin_upload
@@ -72,10 +74,13 @@ class OrderEmailSettingsAdminForm(HtmlTableSanitizerMixin, forms.ModelForm):
 
 class SliderAdminForm(forms.ModelForm):
     image_upload = forms.FileField(required=False, label="Upload image")
+    text = ProseEditorFormField(label="Текст баннера", required=False, sanitize=True,
+        extensions={"Bold": True, "Italic": True, "HardBreak": True}, widget=AdminProseEditorWidget)
 
     class Meta:
         model = Slider
         fields = "__all__"
+        widgets = {"title": forms.Textarea(attrs={"rows": 2})}
 
     def save(self, commit=True):
         instance = super().save(commit=False)
