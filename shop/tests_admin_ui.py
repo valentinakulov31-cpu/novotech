@@ -187,6 +187,10 @@ class RichTextAdminFormTests(TestCase):
         self.assertIn('border-style: dotted', cleaned_html)
         self.assertIn('border-width: 1px', cleaned_html)
         self.assertIn('border-collapse: collapse', cleaned_html)
+        self.assertIn('border: 1px dotted currentColor', cleaned_html)
+        self.assertNotIn('background-color: white', cleaned_html)
+        self.assertNotIn('padding: 12px', cleaned_html)
+        self.assertNotIn('border="1"', cleaned_html)
 
     def test_catalog_table_with_single_quoted_attributes_is_recognized(self):
         raw_html = (
@@ -228,7 +232,3 @@ class RichTextAdminFormTests(TestCase):
     def test_unbalanced_table_markup_is_left_untouched(self):
         raw_html = '<table style="border-style: solid" border="1"><tr><td>broken'
         self.assertEqual(sanitize_catalog_tables(raw_html), raw_html)
-        self.assertIn('border: 1px dotted currentColor', cleaned_html)
-        self.assertNotIn('background-color: white', cleaned_html)
-        self.assertNotIn('padding: 12px', cleaned_html)
-        self.assertNotIn('border="1"', cleaned_html)

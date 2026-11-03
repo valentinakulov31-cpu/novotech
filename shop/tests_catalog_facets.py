@@ -3,11 +3,23 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from shop.models import Agent, PUBLISH_STATUS_DRAFT, PUBLISH_STATUS_PUBLISHED, Product
+from shop.models import Agent, PUBLISH_STATUS_DRAFT, PUBLISH_STATUS_PUBLISHED, Product, ProductCharacteristic
 from shop.tests_catalog_support import CatalogApiFixtureBase
 
 
 class CatalogFacetApiTests(CatalogApiFixtureBase):
+    def test_decimal_attribute_range_preserves_comma_and_ignores_text(self):
+        ProductCharacteristic.objects.filter(characteristic=self.char_thickness).update(value="10,5")
+        ProductCharacteristic.objects.create(product=self.other_product, characteristic=self.char_thickness, value="unknown")
+        response = self.client.post(reverse("catalog-facets"), {}, format="json")
+        self.assertEqual(response.status_code, 200)
+        facet = next(f for f in response.json()["attributes"] if f["slug"] == self.char_thickness.slug)
+        self.assertEqual((facet["range"]["min"], facet["range"]["max"]), (10.5, 10.5))
+        payload = {"filters": {"attributes": {self.char_thickness.slug: {"min": 10.4, "max": 10.6}}}}
+        response = self.client.post(reverse("catalog-results"), payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([p["sku"] for p in response.json()["results"]], [self.product.sku])
+
     def test_group_filters_return_facets_with_counts(self):
         response = self.client.get(reverse("group-filters", kwargs={"group_id": self.group.id}))
         self.assertEqual(response.status_code, 200)
@@ -28,11 +40,11 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
         response = self.client.post(
             reverse("products-filter"),
             {
-                "q": "РЎвЂљР ВµР С—Р В»Р С•Р С‘Р В·Р С•Р В»РЎРЏРЎвЂ Р С‘РЎРЏ ENERGOROLL",
+                "q": "теплоизоляция ENERGOROLL",
                 "group_id": self.group.id,
                 "attributes": {
                     "tolschina-ot-mm": ["20"],
-                    "pokrytie": ["Р В¤Р С•Р В»РЎРЉР С–Р В°"],
+                    "pokrytie": ["Фольга"],
                 },
             },
             format="json",
@@ -48,7 +60,7 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
             {
                 "group_id": self.group.id,
                 "attr.tolschina-ot-mm": "20",
-                "attr.pokrytie": "Р В¤Р С•Р В»РЎРЉР С–Р В°",
+                "attr.pokrytie": "Фольга",
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -93,14 +105,14 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
             reverse("catalog-results"),
             {
                 "context": {
-                    "q": "Р СћР ВµР С—Р В»Р С•Р С‘Р В·Р С•Р В»РЎРЏРЎвЂ Р С‘РЎРЏ ENERGOROLL",
+                    "q": "Теплоизоляция ENERGOROLL",
                     "group_slug": "teploizolyatsiya",
                     "brand_slug": "energoroll",
                 },
                 "filters": {
                     "available": True,
                     "attributes": {
-                        "pokrytie": ["Р В¤Р С•Р В»РЎРЉР С–Р В°"],
+                        "pokrytie": ["Фольга"],
                     },
                 },
                 "page": 1,
@@ -161,7 +173,7 @@ class CatalogFacetApiTests(CatalogApiFixtureBase):
                 },
                 "filters": {
                     "attributes": {
-                        "pokrytie": ["Р В¤Р С•Р В»РЎРЉР С–Р В°"],
+                        "pokrytie": ["Фольга"],
                     }
                 },
             },

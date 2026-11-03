@@ -1,5 +1,5 @@
-from django.db.models import FloatField
-from django.db.models.functions import Cast
+from django.db.models import Case, FloatField, Value, When
+from django.db.models.functions import Cast, Replace
 
 from shop.filtering_catalog_payload import normalize_catalog_payload
 from shop.filtering_search import apply_ranked_search, parse_decimal, tokenize_query
@@ -58,13 +58,20 @@ def build_catalog_base_queryset(payload, queryset=None, exclude=None):
     return queryset.distinct()
 
 
+def numeric_attribute_value():
+    # Guard the cast inside CASE: PostgreSQL can reorder WHERE predicates.
+    return Case(When(
+        value__regex=r"^-?[0-9]+([.,][0-9]+)?$",
+        then=Cast(Replace("value", Value(","), Value(".")), FloatField()),
+    ), output_field=FloatField())
+
+
 def _attribute_filter_product_ids(slug, rule):
     queryset = ProductCharacteristic.objects.filter(characteristic__slug=slug).exclude(value__isnull=True).exclude(value="")
     if isinstance(rule, dict):
         min_value = parse_decimal(rule.get("min"))
         max_value = parse_decimal(rule.get("max"))
-        queryset = queryset.filter(value__regex=r"^-?\d+([.,]\d+)?$")
-        queryset = queryset.annotate(value_num=Cast("value", FloatField()))
+        queryset = queryset.annotate(value_num=numeric_attribute_value()).filter(value_num__isnull=False)
         if min_value is not None:
             queryset = queryset.filter(value_num__gte=float(min_value))
         if max_value is not None:

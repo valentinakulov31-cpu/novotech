@@ -13,8 +13,8 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
         self.assertEqual([item["url"] for item in data["media_list"]], ["/static/b.jpg", "/static/a.jpg"])
         self.assertEqual([item["url"] for item in data["gallery"]], ["/static/video.mp4", "/static/gallery.jpg"])
         self.assertEqual(data["gallery"][0]["file_kind"], "video")
-        self.assertEqual(data["certificates_list"][0]["title"], "Р РЋР ВµРЎР‚РЎвЂљР С‘РЎвЂћР С‘Р С”Р В°РЎвЂљ РЎРѓР С•Р С•РЎвЂљР Р†Р ВµРЎвЂљРЎРѓРЎвЂљР Р†Р С‘РЎРЏ")
-        self.assertEqual(data["assortment_html"], "<p><strong>Р С’РЎРѓРЎРѓР С•РЎР‚РЎвЂљР С‘Р СР ВµР Р…РЎвЂљ:</strong> РЎвЂ Р С‘Р В»Р С‘Р Р…Р Т‘РЎР‚РЎвЂ№, Р СР В°РЎвЂљРЎвЂ№</p>")
+        self.assertEqual(data["certificates_list"][0]["title"], "Сертификат соответствия")
+        self.assertEqual(data["assortment_html"], "<p><strong>Ассортимент:</strong> цилиндры, маты</p>")
 
     def test_products_list_includes_media_documents_and_certificates(self):
         response = self.client.get(reverse("products-list"), {"group_id": self.group.id})
@@ -24,7 +24,7 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
         self.assertEqual(data[0]["gallery"][0]["file_kind"], "video")
         self.assertEqual(data[0]["media_list"][0]["media_kind"], "image")
         self.assertEqual(data[0]["certificates_list"][0]["url"], "/static/certificate.pdf")
-        self.assertEqual(data[0]["assortment_html"], "<p><strong>Р С’РЎРѓРЎРѓР С•РЎР‚РЎвЂљР С‘Р СР ВµР Р…РЎвЂљ:</strong> РЎвЂ Р С‘Р В»Р С‘Р Р…Р Т‘РЎР‚РЎвЂ№, Р СР В°РЎвЂљРЎвЂ№</p>")
+        self.assertEqual(data[0]["assortment_html"], "<p><strong>Ассортимент:</strong> цилиндры, маты</p>")
 
     def test_hidden_products_are_not_publicly_visible(self):
         hidden_product = Product.objects.create(
@@ -60,14 +60,14 @@ class CatalogMediaApiTests(CatalogApiFixtureBase):
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(
             detail_response.json()["characteristics_html"],
-            "<div><h3>Р ТђР В°РЎР‚Р В°Р С”РЎвЂљР ВµРЎР‚Р С‘РЎРѓРЎвЂљР С‘Р С”Р С‘</h3><p>Р СћР С•Р В»РЎвЂ°Р С‘Р Р…Р В°, Р С—Р С•Р С”РЎР‚РЎвЂ№РЎвЂљР С‘Р Вµ</p></div>",
+            "<div><h3>Характеристики</h3><p>Толщина, покрытие</p></div>",
         )
 
         list_response = self.client.get(reverse("products-list"), {"group_id": self.group.id})
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual(
             list_response.json()[0]["characteristics_html"],
-            "<div><h3>Р ТђР В°РЎР‚Р В°Р С”РЎвЂљР ВµРЎР‚Р С‘РЎРѓРЎвЂљР С‘Р С”Р С‘</h3><p>Р СћР С•Р В»РЎвЂ°Р С‘Р Р…Р В°, Р С—Р С•Р С”РЎР‚РЎвЂ№РЎвЂљР С‘Р Вµ</p></div>",
+            "<div><h3>Характеристики</h3><p>Толщина, покрытие</p></div>",
         )
 
     def test_product_and_group_endpoints_include_seo_payload(self):

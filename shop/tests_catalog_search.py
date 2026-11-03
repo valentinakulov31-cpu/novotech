@@ -7,17 +7,17 @@ class CatalogSearchApiTests(CatalogApiFixtureBase):
     def test_global_search_uses_characteristics_html(self):
         self.product.characteristics_html = (
             "<table><tr>"
-            "<td>Р СћР ВµР С—Р В»Р С•Р С—РЎР‚Р С•Р Р†Р С•Р Т‘Р Р…Р С•РЎРѓРЎвЂљРЎРЉ, РћВ»10</td>"
-            "<td>Р вЂ™РЎвЂљ/Р СР’В·Р’В°Р РЋ</td>"
+            "<td>Теплопроводность, λ10</td>"
+            "<td>Вт/м·°С</td>"
             "<td>0,034</td>"
             "<td>0,034</td>"
             "<td>0,036</td>"
-            "<td>Р вЂњР С›Р РЋР Сћ 31925-2011</td>"
+            "<td>ГОСТ 31925-2011</td>"
             "</tr></table>"
         )
         self.product.save(update_fields=["characteristics_html"])
 
-        response = self.client.get(reverse("global-search"), {"q": "Р СћР ВµР С—Р В»Р С•Р С—РЎР‚Р С•Р Р†Р С•Р Т‘Р Р…Р С•РЎРѓРЎвЂљРЎРЉ 0,034"})
+        response = self.client.get(reverse("global-search"), {"q": "Теплопроводность 0,034"})
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
@@ -45,12 +45,12 @@ class CatalogSearchApiTests(CatalogApiFixtureBase):
     def test_catalog_search_uses_characteristics_html(self):
         self.product.characteristics_html = (
             "<table><tr>"
-            "<td>Р СћР ВµР С—Р В»Р С•Р С—РЎР‚Р С•Р Р†Р С•Р Т‘Р Р…Р С•РЎРѓРЎвЂљРЎРЉ, РћВ»10</td>"
-            "<td>Р вЂ™РЎвЂљ/Р СР’В·Р’В°Р РЋ</td>"
+            "<td>Теплопроводность, λ10</td>"
+            "<td>Вт/м·°С</td>"
             "<td>0,034</td>"
             "<td>0,034</td>"
             "<td>0,036</td>"
-            "<td>Р вЂњР С›Р РЋР Сћ 31925-2011</td>"
+            "<td>ГОСТ 31925-2011</td>"
             "</tr></table>"
         )
         self.product.save(update_fields=["characteristics_html"])
@@ -58,7 +58,7 @@ class CatalogSearchApiTests(CatalogApiFixtureBase):
         response = self.client.post(
             reverse("catalog-results"),
             {
-                "context": {"q": "РЎвЂљР ВµР С—Р В»Р С•Р С—РЎР‚Р С•Р Р†Р С•Р Т‘Р Р…Р С•РЎРѓРЎвЂљРЎРЉ Р С–Р С•РЎРѓРЎвЂљ"},
+                "context": {"q": "теплопроводность гост"},
                 "filters": {},
                 "page": 1,
                 "page_size": 12,

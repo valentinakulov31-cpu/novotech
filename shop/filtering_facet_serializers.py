@@ -1,7 +1,7 @@
-from django.db.models import Count, FloatField, Max, Min, Q
-from django.db.models.functions import Cast
+from django.db.models import Count, Max, Min, Q
 
 from shop.filtering_catalog import apply_catalog_filters
+from shop.filtering_catalog_query import numeric_attribute_value
 from shop.filtering_search import parse_decimal
 from shop.models import Brand, Characteristic, Group, Product, ProductCharacteristic
 
@@ -90,8 +90,7 @@ def serialize_attribute_facets(base_queryset, payload):
 
         if characteristic.data_type == "number":
             numeric_values = (
-                values_queryset.filter(value__regex=r"^-?\d+([.,]\d+)?$")
-                .annotate(value_num=Cast("value", FloatField()))
+                values_queryset.annotate(value_num=numeric_attribute_value())
                 .aggregate(min_value=Min("value_num"), max_value=Max("value_num"))
             )
             selected_range = selected_attributes.get(characteristic.slug) if isinstance(selected_attributes.get(characteristic.slug), dict) else {}
