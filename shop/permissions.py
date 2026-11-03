@@ -18,3 +18,8 @@ class IsAdmin(permissions.BasePermission):
             or getattr(user, "is_staff", False)
             or getattr(user, "role", None) == "admin"
         )
+
+
+class IsAdminOrReadOnly(IsAdmin):
+    def has_permission(self, request, view):
+        return request.method in permissions.SAFE_METHODS or super().has_permission(request, view)

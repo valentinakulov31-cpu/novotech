@@ -25,7 +25,7 @@ from shop.serializers import (
     ProductSerializer,
     ProductCreateSerializer,
 )
-from shop.permissions import IsAdmin
+from shop.permissions import IsAdmin, IsAdminOrReadOnly
 from shop.view_transport_helpers import (
     create_instance_from_request,
     resolve_city_slug,
@@ -147,7 +147,7 @@ class ProductCreateView(CreateAPIView):
 @extend_schema(tags=['products'])
 class ProductDetailView(APIView):
     """Get product details with media and attributes"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminOrReadOnly]
     
     @extend_schema(
         responses={200: {

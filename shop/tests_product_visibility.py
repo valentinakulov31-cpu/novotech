@@ -1,6 +1,7 @@
 from decimal import Decimal
 from io import BytesIO
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -45,6 +46,23 @@ class ProductVisibilityTests(TestCase):
         slugs = [item["slug"] for item in response.json()]
         self.assertIn(self.visible_product.slug, slugs)
         self.assertNotIn(self.hidden_product.slug, slugs)
+
+    def test_product_updates_require_admin_but_reads_remain_public(self):
+        product = self.visible_product
+        url = reverse("products-detail", args=[product.slug])
+        payload = {"sku": product.sku, "name": "Updated", "price": "123.00", "currency": "RUB"}
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.put(url, payload, format="json").status_code, 403)
+        user = get_user_model().objects.create_user(username="shopper")
+        self.client.force_authenticate(user)
+        self.assertEqual(self.client.put(url, payload, format="json").status_code, 403)
+        product.refresh_from_db()
+        self.assertEqual(product.name, "Visible product")
+        user.is_staff = True
+        user.save(update_fields=["is_staff"])
+        self.assertEqual(self.client.put(url, payload, format="json").status_code, 200)
+        product.refresh_from_db()
+        self.assertEqual(product.name, payload["name"])
 
     def test_hidden_product_detail_returns_404(self):
         response = self.client.get(reverse("products-detail", kwargs={"product_identifier": self.hidden_product.slug}))
