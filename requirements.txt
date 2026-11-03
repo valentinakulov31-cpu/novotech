@@ -9,6 +9,8 @@ django-filter==24.1
 openpyxl==3.1.5
 django-tinymce==5.0.0
 django-prose-editor[sanitize]==0.26.0
+# Prose Editor 0.26 passes ImportMap in Media.js, unsupported in js-asset 5.
+django-js-asset==4.0.1
 beautifulsoup4==4.15.0
 gunicorn==23.0.0
 whitenoise==6.7.0

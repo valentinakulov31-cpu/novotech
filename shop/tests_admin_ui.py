@@ -1,12 +1,15 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.test import TestCase
 from django.test.client import RequestFactory
+from django.urls import reverse
 from django_prose_editor.widgets import AdminProseEditorWidget
 from tinymce.widgets import TinyMCE
 
 from django_shop.middleware import MediaEmbedHeadersMiddleware
 from shop.admin import HtmlContentAdminForm, NewsAdminForm, OrderEmailSettingsAdminForm, ProductAdminForm, sanitize_catalog_tables
+from shop.models import Product, Slider
 
 
 class MediaEmbedHeadersMiddlewareTests(TestCase):
@@ -21,6 +24,21 @@ class MediaEmbedHeadersMiddlewareTests(TestCase):
 
         blocked_response = middleware(factory.get("/static/admin_uploads/slider/test.jpg"))
         self.assertNotIn("Cross-Origin-Opener-Policy", blocked_response)
+
+
+class RichTextAdminPageTests(TestCase):
+    def test_product_and_slider_editor_pages_render_with_import_map(self):
+        user = get_user_model().objects.create_superuser(username="editor", password=None)
+        self.client.force_login(user)
+        product = Product.objects.create(name="Sample", sku="sample", price=1, currency="RUB")
+        slider = Slider.objects.create(title="Banner", image="/static/banner.jpg")
+        for obj in (product, slider):
+            for action, args in (("add", []), ("change", [obj.pk])):
+                with self.subTest(model=obj._meta.model_name, action=action):
+                    url = reverse(f"admin:shop_{obj._meta.model_name}_{action}", args=args)
+                    response = self.client.get(url)
+                    self.assertContains(response, 'type="importmap"')
+                    self.assertContains(response, "django-prose-editor/editor")
 
 
 class RichTextAdminFormTests(TestCase):
